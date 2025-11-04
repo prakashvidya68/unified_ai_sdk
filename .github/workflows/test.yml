@@ -1,0 +1,66 @@
+name: Test & Analyze
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test on Dart ${{ matrix.dart-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        dart-version: ["3.0.0", "3.1.0", "3.2.0", "stable"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          dart-version: ${{ matrix.dart-version }}
+
+      - name: Verify Dart version
+        run: dart --version
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Verify dependencies
+        run: dart pub deps
+
+      - name: Run analyzer
+        run: dart analyze --fatal-infos
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Run tests
+        run: dart test --reporter expanded
+
+  quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          dart-version: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run analyzer
+        run: dart analyze --fatal-infos
+
+      - name: Check code formatting
+        run: dart format --set-exit-if-changed .
