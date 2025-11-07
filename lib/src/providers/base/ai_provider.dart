@@ -1,3 +1,4 @@
+import '../../core/provider_config.dart';
 import '../../error/error_types.dart';
 import '../../models/common/capabilities.dart';
 import '../../models/requests/chat_request.dart';
@@ -19,12 +20,6 @@ import '../../models/responses/transcription_response.dart';
 /// Note: ChatStreamEvent model needs to be created for streaming support
 class ChatStreamEvent {
   // This is a placeholder. Actual implementation will be in streaming step
-}
-
-/// Placeholder for ProviderConfig - will be replaced when Step 6.2 is completed
-/// Note: ProviderConfig needs to be created in lib/src/core/provider_config.dart
-class ProviderConfig {
-  // This is a placeholder. Actual implementation will be in Step 6.2
 }
 
 /// Base interface for all AI providers.

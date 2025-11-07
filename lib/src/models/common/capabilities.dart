@@ -60,20 +60,58 @@ class ProviderCapabilities {
   /// Examples: ['gpt-4', 'gpt-3.5-turbo', 'text-embedding-ada-002']
   /// This list helps the SDK validate model selection and provides
   /// information about available models.
-  final List<String> supportedModels;
+  ///
+  /// **Note:** If [dynamicModels] is true, this getter returns dynamically
+  /// fetched models if available and cache is valid, otherwise returns
+  /// [fallbackModels].
+  List<String> get supportedModels {
+    if (dynamicModels && _cachedModels != null && _isCacheValid()) {
+      return _cachedModels!;
+    }
+    return fallbackModels;
+  }
+
+  /// Static fallback models (used when dynamic fetch fails or not implemented).
+  ///
+  /// These models are used as a backup when:
+  /// - Dynamic model fetching is not supported
+  /// - Dynamic fetch fails
+  /// - Cache is expired and refresh fails
+  ///
+  /// This ensures the SDK always has a list of models available, even if
+  /// the provider's API is unreachable.
+  final List<String> fallbackModels;
+
+  /// Whether models are dynamically fetched from the provider's API.
+  ///
+  /// When true, the provider implements [ModelFetcher] and models are
+  /// fetched from the API. When false, only [fallbackModels] are used.
+  final bool dynamicModels;
+
+  /// Cached dynamically fetched models.
+  List<String>? _cachedModels;
+
+  /// Timestamp when models were last fetched.
+  DateTime? _cacheTimestamp;
+
+  /// Cache TTL for dynamically fetched models (24 hours).
+  static const Duration _cacheTTL = Duration(hours: 24);
 
   /// Creates a new [ProviderCapabilities] instance.
   ///
   /// All parameters are optional and default to `false` for boolean flags
-  /// and an empty list for [supportedModels]. This allows creating minimal
+  /// and an empty list for [fallbackModels]. This allows creating minimal
   /// capability definitions that can be extended as needed.
   ///
   /// **Example:**
   /// ```dart
-  /// // Minimal capabilities - only chat
-  /// final basic = ProviderCapabilities(supportsChat: true);
+  /// // Minimal capabilities - only chat with static models
+  /// final basic = ProviderCapabilities(
+  ///   supportsChat: true,
+  ///   fallbackModels: ['gpt-4'],
+  /// );
   ///
-  /// // Full-featured provider
+  /// // Full-featured provider with dynamic model discovery
   /// final advanced = ProviderCapabilities(
   ///   supportsChat: true,
   ///   supportsEmbedding: true,
@@ -81,18 +119,59 @@ class ProviderCapabilities {
   ///   supportsTTS: true,
   ///   supportsSTT: true,
   ///   supportsStreaming: true,
-  ///   supportedModels: ['model-1', 'model-2'],
+  ///   fallbackModels: ['gpt-4', 'gpt-3.5-turbo'],
+  ///   dynamicModels: true, // Enable dynamic fetching
   /// );
   /// ```
-  const ProviderCapabilities({
+  ProviderCapabilities({
     this.supportsChat = false,
     this.supportsEmbedding = false,
     this.supportsImageGeneration = false,
     this.supportsTTS = false,
     this.supportsSTT = false,
     this.supportsStreaming = false,
-    this.supportedModels = const [],
-  });
+    List<String>? fallbackModels,
+    this.dynamicModels = false,
+  }) : fallbackModels = fallbackModels ?? const [];
+
+  /// Updates the cached models from dynamic fetch.
+  ///
+  /// This method should be called after successfully fetching models from
+  /// the provider's API. The models will be cached for [cacheTTL] duration.
+  ///
+  /// **Parameters:**
+  /// - [models]: List of model IDs fetched from the provider's API
+  ///
+  /// **Example:**
+  /// ```dart
+  /// final models = await provider.fetchAvailableModels();
+  /// capabilities.updateModels(models);
+  /// ```
+  void updateModels(List<String> models) {
+    _cachedModels = List<String>.unmodifiable(models);
+    _cacheTimestamp = DateTime.now();
+  }
+
+  /// Clears the cached models, forcing a refresh on next access.
+  ///
+  /// Useful for forcing a refresh of models or when cache becomes invalid.
+  void clearCache() {
+    _cachedModels = null;
+    _cacheTimestamp = null;
+  }
+
+  /// Checks if the cache is still valid.
+  ///
+  /// Returns true if cached models exist and haven't expired.
+  bool _isCacheValid() {
+    if (_cacheTimestamp == null || _cachedModels == null) {
+      return false;
+    }
+    return DateTime.now().difference(_cacheTimestamp!) < _cacheTTL;
+  }
+
+  /// Gets the cache TTL for dynamically fetched models.
+  static Duration get cacheTTL => _cacheTTL;
 
   /// Creates a [ProviderCapabilities] instance from a JSON map.
   ///
@@ -129,10 +208,15 @@ class ProviderCapabilities {
       supportsStreaming: json['supportsStreaming'] as bool? ??
           json['supports_streaming'] as bool? ??
           false,
-      supportedModels:
-          (json['supportedModels'] as List<dynamic>?)?.cast<String>() ??
+      fallbackModels:
+          (json['fallbackModels'] as List<dynamic>?)?.cast<String>() ??
+              (json['fallback_models'] as List<dynamic>?)?.cast<String>() ??
+              (json['supportedModels'] as List<dynamic>?)?.cast<String>() ??
               (json['supported_models'] as List<dynamic>?)?.cast<String>() ??
               const [],
+      dynamicModels: json['dynamicModels'] as bool? ??
+          json['dynamic_models'] as bool? ??
+          false,
     );
   }
 
@@ -155,7 +239,10 @@ class ProviderCapabilities {
       'supportsTTS': supportsTTS,
       'supportsSTT': supportsSTT,
       'supportsStreaming': supportsStreaming,
-      'supportedModels': supportedModels,
+      'supportedModels':
+          supportedModels, // Current models (dynamic or fallback)
+      'fallbackModels': fallbackModels,
+      'dynamicModels': dynamicModels,
     };
   }
 
@@ -178,7 +265,8 @@ class ProviderCapabilities {
     bool? supportsTTS,
     bool? supportsSTT,
     bool? supportsStreaming,
-    List<String>? supportedModels,
+    List<String>? fallbackModels,
+    bool? dynamicModels,
   }) {
     return ProviderCapabilities(
       supportsChat: supportsChat ?? this.supportsChat,
@@ -188,7 +276,8 @@ class ProviderCapabilities {
       supportsTTS: supportsTTS ?? this.supportsTTS,
       supportsSTT: supportsSTT ?? this.supportsSTT,
       supportsStreaming: supportsStreaming ?? this.supportsStreaming,
-      supportedModels: supportedModels ?? this.supportedModels,
+      fallbackModels: fallbackModels ?? this.fallbackModels,
+      dynamicModels: dynamicModels ?? this.dynamicModels,
     );
   }
 
@@ -202,7 +291,9 @@ class ProviderCapabilities {
         other.supportsTTS == supportsTTS &&
         other.supportsSTT == supportsSTT &&
         other.supportsStreaming == supportsStreaming &&
-        _listEquals(other.supportedModels, supportedModels);
+        _listEquals(other.supportedModels, supportedModels) &&
+        _listEquals(other.fallbackModels, fallbackModels) &&
+        other.dynamicModels == dynamicModels;
   }
 
   @override
@@ -215,6 +306,8 @@ class ProviderCapabilities {
       supportsSTT,
       supportsStreaming,
       Object.hashAll(supportedModels),
+      Object.hashAll(fallbackModels),
+      dynamicModels,
     );
   }
 
@@ -231,10 +324,11 @@ class ProviderCapabilities {
     final modelsInfo = supportedModels.isEmpty
         ? 'no models'
         : '${supportedModels.length} model(s)';
+    final dynamicInfo = dynamicModels ? ' [dynamic]' : '';
 
     return 'ProviderCapabilities('
         '${capabilities.isEmpty ? 'none' : capabilities.join(', ')}, '
-        '$modelsInfo)';
+        '$modelsInfo$dynamicInfo)';
   }
 
   /// Helper method to compare lists of strings for equality.
