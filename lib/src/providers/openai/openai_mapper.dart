@@ -30,8 +30,10 @@ import '../../models/common/message.dart';
 import '../../models/common/usage.dart';
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
+import '../../models/requests/image_request.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
+import '../../models/responses/image_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'openai_models.dart';
@@ -90,6 +92,21 @@ class OpenAIMapper implements ProviderMapper {
           'Expected OpenAIEmbeddingResponse, got ${response.runtimeType}');
     }
     return _mapEmbeddingResponseImpl(response);
+  }
+
+  @override
+  OpenAIImageRequest mapImageRequest(ImageRequest request,
+      {String? defaultModel}) {
+    return _mapImageRequestImpl(request, defaultModel: defaultModel);
+  }
+
+  @override
+  ImageResponse mapImageResponse(dynamic response) {
+    if (response is! OpenAIImageResponse) {
+      throw ArgumentError(
+          'Expected OpenAIImageResponse, got ${response.runtimeType}');
+    }
+    return _mapImageResponseImpl(response);
   }
 
   // Private implementation methods
@@ -336,5 +353,78 @@ class OpenAIMapper implements ProviderMapper {
           code: 'INVALID_ROLE',
         );
     }
+  }
+
+  /// Maps SDK [ImageRequest] to OpenAI image generation request format.
+  OpenAIImageRequest _mapImageRequestImpl(
+    ImageRequest request, {
+    String? defaultModel,
+  }) {
+    // Determine model - default to dall-e-3 if not specified
+    final model = request.model ?? defaultModel ?? 'dall-e-3';
+
+    // Convert ImageSize enum to string format
+    String? sizeString;
+    if (request.size != null) {
+      sizeString = request.size!.toString(); // Already in "WIDTHxHEIGHT" format
+    }
+
+    // Extract OpenAI-specific options
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+
+    // For DALL-E 3, n must be 1 (enforced by API, but we can validate)
+    final int? n = request.n;
+    if (model == 'dall-e-3' && n != null && n != 1) {
+      throw ClientError(
+        message: 'DALL-E 3 only supports generating 1 image at a time (n=1)',
+        code: 'INVALID_N_VALUE',
+      );
+    }
+
+    return OpenAIImageRequest(
+      prompt: request.prompt,
+      model: model,
+      n: n,
+      size: sizeString,
+      quality: request.quality ?? openaiOptions['quality'] as String?,
+      style: request.style ?? openaiOptions['style'] as String?,
+      responseFormat: openaiOptions['response_format'] as String? ??
+          openaiOptions['responseFormat'] as String?,
+      user: openaiOptions['user'] as String?,
+    );
+  }
+
+  /// Maps OpenAI image generation response to SDK [ImageResponse].
+  ImageResponse _mapImageResponseImpl(OpenAIImageResponse response) {
+    // Convert OpenAI image data to SDK ImageAsset
+    final assets = response.data.map((imageData) {
+      return ImageAsset(
+        url: imageData.url,
+        base64: imageData.b64Json,
+        revisedPrompt: imageData.revisedPrompt,
+        // Note: OpenAI doesn't provide width/height in the response
+        // They can be inferred from the size parameter, but we don't have that here
+        // Users can check the image dimensions after downloading
+      );
+    }).toList();
+
+    // Extract model from response (if available) or use default
+    // OpenAI doesn't return the model in the response, so we'll use a default
+    // In practice, this should be tracked from the request
+    final model =
+        'dall-e-3'; // Default, could be enhanced to track from request
+
+    // Build metadata from OpenAI-specific fields
+    final metadata = <String, dynamic>{
+      'created': response.created,
+    };
+
+    return ImageResponse(
+      assets: assets,
+      model: model,
+      provider: 'openai',
+      metadata: metadata,
+    );
   }
 }

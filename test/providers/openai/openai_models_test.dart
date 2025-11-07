@@ -518,4 +518,234 @@ void main() {
       expect(json['usage'], isA<Map>());
     });
   });
+
+  group('OpenAIImageRequest', () {
+    test('should create instance with required fields', () {
+      final request = OpenAIImageRequest(
+        prompt: 'A beautiful sunset',
+        model: 'dall-e-3',
+        size: '1024x1024',
+      );
+
+      expect(request.prompt, equals('A beautiful sunset'));
+      expect(request.model, equals('dall-e-3'));
+      expect(request.size, equals('1024x1024'));
+    });
+
+    test('should convert to JSON correctly', () {
+      final request = OpenAIImageRequest(
+        prompt: 'A cat',
+        model: 'dall-e-3',
+        n: 1,
+        size: '1024x1024',
+        quality: 'hd',
+        style: 'vivid',
+        responseFormat: 'url',
+        user: 'user123',
+      );
+
+      final json = request.toJson();
+
+      expect(json['prompt'], equals('A cat'));
+      expect(json['model'], equals('dall-e-3'));
+      expect(json['n'], equals(1));
+      expect(json['size'], equals('1024x1024'));
+      expect(json['quality'], equals('hd'));
+      expect(json['style'], equals('vivid'));
+      expect(json['response_format'], equals('url'));
+      expect(json['user'], equals('user123'));
+    });
+
+    test('should create from JSON correctly', () {
+      final json = {
+        'prompt': 'A beautiful landscape',
+        'model': 'dall-e-2',
+        'n': 2,
+        'size': '512x512',
+        'quality': 'standard',
+      };
+
+      final request = OpenAIImageRequest.fromJson(json);
+
+      expect(request.prompt, equals('A beautiful landscape'));
+      expect(request.model, equals('dall-e-2'));
+      expect(request.n, equals(2));
+      expect(request.size, equals('512x512'));
+      expect(request.quality, equals('standard'));
+    });
+
+    test('should handle optional fields', () {
+      final request = OpenAIImageRequest(
+        prompt: 'A cat',
+        // All other fields are optional
+      );
+
+      expect(request.model, isNull);
+      expect(request.n, isNull);
+      expect(request.size, isNull);
+    });
+
+    test('should support camelCase in fromJson', () {
+      final json = {
+        'prompt': 'A cat',
+        'responseFormat': 'b64_json', // camelCase
+      };
+
+      final request = OpenAIImageRequest.fromJson(json);
+      expect(request.responseFormat, equals('b64_json'));
+    });
+  });
+
+  group('OpenAIImageResponse', () {
+    test('should create instance with required fields', () {
+      final response = OpenAIImageResponse(
+        created: 1234567890,
+        data: [
+          OpenAIImageData(
+            url: 'https://example.com/image.png',
+            revisedPrompt: 'A beautiful sunset',
+          ),
+        ],
+      );
+
+      expect(response.created, equals(1234567890));
+      expect(response.data.length, equals(1));
+      expect(response.data.first.url, equals('https://example.com/image.png'));
+    });
+
+    test('should convert to JSON correctly', () {
+      final response = OpenAIImageResponse(
+        created: 1234567890,
+        data: [
+          OpenAIImageData(
+            url: 'https://example.com/image.png',
+            b64Json: null,
+            revisedPrompt: 'A beautiful sunset',
+          ),
+        ],
+      );
+
+      final json = response.toJson();
+
+      expect(json['created'], equals(1234567890));
+      expect(json['data'], isA<List>());
+      expect(json['data'].length, equals(1));
+      expect(json['data'][0]['url'], equals('https://example.com/image.png'));
+      expect(json['data'][0]['revised_prompt'], equals('A beautiful sunset'));
+    });
+
+    test('should create from JSON correctly', () {
+      final json = {
+        'created': 1234567890,
+        'data': [
+          {
+            'url': 'https://example.com/image.png',
+            'revised_prompt': 'A beautiful sunset',
+          }
+        ],
+      };
+
+      final response = OpenAIImageResponse.fromJson(json);
+
+      expect(response.created, equals(1234567890));
+      expect(response.data.length, equals(1));
+      expect(response.data.first.url, equals('https://example.com/image.png'));
+      expect(response.data.first.revisedPrompt, equals('A beautiful sunset'));
+    });
+
+    test('should handle base64 format', () {
+      final json = {
+        'created': 1234567890,
+        'data': [
+          {
+            'b64_json':
+                'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          }
+        ],
+      };
+
+      final response = OpenAIImageResponse.fromJson(json);
+
+      expect(response.data.first.b64Json, isNotNull);
+      expect(response.data.first.url, isNull);
+    });
+
+    test('should support camelCase in fromJson', () {
+      final json = {
+        'created': 1234567890,
+        'data': [
+          {
+            'b64Json': 'base64data', // camelCase
+            'revisedPrompt': 'Revised prompt', // camelCase
+          }
+        ],
+      };
+
+      final response = OpenAIImageResponse.fromJson(json);
+      expect(response.data.first.b64Json, equals('base64data'));
+      expect(response.data.first.revisedPrompt, equals('Revised prompt'));
+    });
+  });
+
+  group('OpenAIImageData', () {
+    test('should create instance with URL', () {
+      final data = OpenAIImageData(
+        url: 'https://example.com/image.png',
+        revisedPrompt: 'A beautiful sunset',
+      );
+
+      expect(data.url, equals('https://example.com/image.png'));
+      expect(data.revisedPrompt, equals('A beautiful sunset'));
+      expect(data.b64Json, isNull);
+    });
+
+    test('should create instance with base64', () {
+      final data = OpenAIImageData(
+        b64Json: 'base64data',
+      );
+
+      expect(data.b64Json, equals('base64data'));
+      expect(data.url, isNull);
+    });
+
+    test('should convert to JSON correctly', () {
+      final data = OpenAIImageData(
+        url: 'https://example.com/image.png',
+        revisedPrompt: 'A beautiful sunset',
+      );
+
+      final json = data.toJson();
+
+      expect(json['url'], equals('https://example.com/image.png'));
+      expect(json['revised_prompt'], equals('A beautiful sunset'));
+      expect(json.containsKey('b64_json'), isFalse);
+    });
+
+    test('should create from JSON correctly', () {
+      final json = {
+        'url': 'https://example.com/image.png',
+        'revised_prompt': 'A beautiful sunset',
+      };
+
+      final data = OpenAIImageData.fromJson(json);
+
+      expect(data.url, equals('https://example.com/image.png'));
+      expect(data.revisedPrompt, equals('A beautiful sunset'));
+    });
+
+    test('should support equality', () {
+      final data1 = OpenAIImageData(
+        url: 'https://example.com/image.png',
+        revisedPrompt: 'A beautiful sunset',
+      );
+
+      final data2 = OpenAIImageData(
+        url: 'https://example.com/image.png',
+        revisedPrompt: 'A beautiful sunset',
+      );
+
+      expect(data1, equals(data2));
+      expect(data1.hashCode, equals(data2.hashCode));
+    });
+  });
 }

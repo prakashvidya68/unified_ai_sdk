@@ -28,8 +28,10 @@
 /// ```
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
+import '../../models/requests/image_request.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
+import '../../models/responses/image_response.dart';
 
 /// Abstract interface for converting between unified SDK models and provider-specific formats.
 ///
@@ -94,4 +96,38 @@ abstract class ProviderMapper {
   /// **Returns:**
   /// A unified [EmbeddingResponse] that can be used by SDK users
   EmbeddingResponse mapEmbeddingResponse(dynamic response);
+
+  /// Converts a unified [ImageRequest] to a provider-specific request format.
+  ///
+  /// This method handles:
+  /// - Converting SDK models to provider-specific format
+  /// - Extracting provider-specific options from [providerOptions]
+  /// - Handling default model selection
+  /// - Converting image size enums to API format
+  ///
+  /// **Parameters:**
+  /// - [request]: The unified SDK image request
+  /// - [defaultModel]: Optional default model to use if request.model is null
+  ///
+  /// **Returns:**
+  /// A provider-specific request object ready to be sent to the provider's API
+  ///
+  /// **Throws:**
+  /// - [ClientError] if the request is invalid or missing required fields
+  dynamic mapImageRequest(ImageRequest request, {String? defaultModel});
+
+  /// Converts a provider-specific image response to a unified [ImageResponse].
+  ///
+  /// This method handles:
+  /// - Converting provider-specific response format to SDK models
+  /// - Normalizing response structure
+  /// - Setting provider identifier
+  /// - Handling both URL and base64 image formats
+  ///
+  /// **Parameters:**
+  /// - [response]: The provider-specific response object (from API)
+  ///
+  /// **Returns:**
+  /// A unified [ImageResponse] that can be used by SDK users
+  ImageResponse mapImageResponse(dynamic response);
 }

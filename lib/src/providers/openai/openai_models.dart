@@ -676,3 +676,247 @@ class OpenAIEmbedding {
     };
   }
 }
+
+/// Represents an image generation request in OpenAI's API format.
+///
+/// This model matches the exact structure expected by OpenAI's `/v1/images/generations`
+/// endpoint for DALL-E image generation.
+///
+/// **OpenAI API Reference:**
+/// https://platform.openai.com/docs/api-reference/images/create
+class OpenAIImageRequest {
+  /// The text prompt describing the image to generate.
+  ///
+  /// Required. The prompt must be specific and descriptive for best results.
+  /// DALL-E 3 has a maximum prompt length of 4000 characters.
+  final String prompt;
+
+  /// The model to use for image generation.
+  ///
+  /// Options: "dall-e-3" or "dall-e-2"
+  /// Defaults to "dall-e-3" if not specified.
+  final String? model;
+
+  /// The number of images to generate.
+  ///
+  /// For DALL-E 3: Must be 1 (only one image can be generated at a time).
+  /// For DALL-E 2: Can be 1-10.
+  final int? n;
+
+  /// The size of the generated images.
+  ///
+  /// For DALL-E 3: "1024x1024", "1024x1792", or "1792x1024"
+  /// For DALL-E 2: "256x256", "512x512", or "1024x1024"
+  /// Must be in format "WIDTHxHEIGHT" (e.g., "1024x1024").
+  final String? size;
+
+  /// The quality of the image that will be generated.
+  ///
+  /// Only supported for DALL-E 3.
+  /// Options: "standard" or "hd"
+  /// "hd" creates images with finer details and greater consistency.
+  final String? quality;
+
+  /// The style of the generated images.
+  ///
+  /// Only supported for DALL-E 3.
+  /// Options: "vivid" or "natural"
+  /// "vivid" creates hyper-real and dramatic images.
+  /// "natural" creates more natural, less hyper-real images.
+  final String? style;
+
+  /// The format in which the generated images are returned.
+  ///
+  /// Options: "url" or "b64_json"
+  /// Defaults to "url" if not specified.
+  final String? responseFormat;
+
+  /// A unique identifier representing your end-user.
+  ///
+  /// Can help OpenAI monitor and detect abuse.
+  final String? user;
+
+  /// Creates a new [OpenAIImageRequest] instance.
+  ///
+  /// [prompt] is required and must not be empty.
+  OpenAIImageRequest({
+    required this.prompt,
+    this.model,
+    this.n,
+    this.size,
+    this.quality,
+    this.style,
+    this.responseFormat,
+    this.user,
+  }) : assert(prompt.isNotEmpty, 'prompt must not be empty');
+
+  /// Converts this request to a JSON map matching OpenAI's API format.
+  Map<String, dynamic> toJson() {
+    return {
+      'prompt': prompt,
+      if (model != null) 'model': model,
+      if (n != null) 'n': n,
+      if (size != null) 'size': size,
+      if (quality != null) 'quality': quality,
+      if (style != null) 'style': style,
+      if (responseFormat != null) 'response_format': responseFormat,
+      if (user != null) 'user': user,
+    };
+  }
+
+  /// Creates an [OpenAIImageRequest] from a JSON map.
+  factory OpenAIImageRequest.fromJson(Map<String, dynamic> json) {
+    return OpenAIImageRequest(
+      prompt: json['prompt'] as String,
+      model: json['model'] as String?,
+      n: json['n'] as int?,
+      size: json['size'] as String?,
+      quality: json['quality'] as String?,
+      style: json['style'] as String?,
+      responseFormat: json['response_format'] as String? ??
+          json['responseFormat'] as String?,
+      user: json['user'] as String?,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIImageRequest(prompt: ${prompt.length > 50 ? "${prompt.substring(0, 50)}..." : prompt}, model: ${model ?? "dall-e-3"}, size: ${size ?? "1024x1024"})';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is OpenAIImageRequest &&
+        other.prompt == prompt &&
+        other.model == model &&
+        other.n == n &&
+        other.size == size &&
+        other.quality == quality &&
+        other.style == style &&
+        other.responseFormat == responseFormat &&
+        other.user == user;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      prompt,
+      model,
+      n,
+      size,
+      quality,
+      style,
+      responseFormat,
+      user,
+    );
+  }
+}
+
+/// Represents an image generation response in OpenAI's API format.
+///
+/// This model matches the exact structure returned by OpenAI's `/v1/images/generations`
+/// endpoint.
+class OpenAIImageResponse {
+  /// Timestamp when the images were created.
+  ///
+  /// Unix timestamp in seconds.
+  final int created;
+
+  /// List of generated image data.
+  final List<OpenAIImageData> data;
+
+  /// Creates a new [OpenAIImageResponse] instance.
+  OpenAIImageResponse({
+    required this.created,
+    required this.data,
+  });
+
+  /// Creates an [OpenAIImageResponse] from a JSON map.
+  factory OpenAIImageResponse.fromJson(Map<String, dynamic> json) {
+    return OpenAIImageResponse(
+      created: json['created'] as int,
+      data: (json['data'] as List)
+          .map((e) => OpenAIImageData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'created': created,
+      'data': data.map((e) => e.toJson()).toList(),
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIImageResponse(created: $created, images: ${data.length})';
+  }
+}
+
+/// Represents a single generated image in OpenAI's format.
+class OpenAIImageData {
+  /// URL of the generated image.
+  ///
+  /// Present when response_format is "url" (default).
+  /// The URL is temporary and expires after a certain period.
+  final String? url;
+
+  /// Base64-encoded image data.
+  ///
+  /// Present when response_format is "b64_json".
+  final String? b64Json;
+
+  /// The revised prompt used for image generation (DALL-E 3 only).
+  ///
+  /// DALL-E 3 automatically revises the user's prompt to improve image quality.
+  /// This field contains the revised version if available.
+  final String? revisedPrompt;
+
+  /// Creates a new [OpenAIImageData] instance.
+  OpenAIImageData({
+    this.url,
+    this.b64Json,
+    this.revisedPrompt,
+  });
+
+  /// Creates an [OpenAIImageData] from a JSON map.
+  factory OpenAIImageData.fromJson(Map<String, dynamic> json) {
+    return OpenAIImageData(
+      url: json['url'] as String?,
+      b64Json: json['b64_json'] as String? ?? json['b64Json'] as String?,
+      revisedPrompt:
+          json['revised_prompt'] as String? ?? json['revisedPrompt'] as String?,
+    );
+  }
+
+  /// Converts this image data to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (url != null) 'url': url,
+      if (b64Json != null) 'b64_json': b64Json,
+      if (revisedPrompt != null) 'revised_prompt': revisedPrompt,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIImageData(url: ${url != null ? "..." : null}, b64Json: ${b64Json != null ? "..." : null}, revisedPrompt: ${revisedPrompt != null ? "..." : null})';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is OpenAIImageData &&
+        other.url == url &&
+        other.b64Json == b64Json &&
+        other.revisedPrompt == revisedPrompt;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(url, b64Json, revisedPrompt);
+  }
+}

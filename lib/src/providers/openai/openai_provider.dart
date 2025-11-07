@@ -305,8 +305,40 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
   @override
   Future<ImageResponse> generateImage(ImageRequest request) async {
-    // Will be implemented in Step 8.6
-    throw UnimplementedError('generateImage() will be implemented in Step 8.6');
+    // Validate that image generation is supported
+    validateCapability('image');
+
+    // Map SDK request to OpenAI format
+    final openAIRequest = _mapper.mapImageRequest(
+      request,
+      defaultModel: _defaultModel,
+    );
+
+    // Make HTTP POST request to images/generations endpoint
+    final response = await _http.post(
+      '$_baseUrl/images/generations',
+      body: jsonEncode(openAIRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final openAIResponse = OpenAIImageResponse.fromJson(responseJson);
+
+    // Map OpenAI response to SDK format
+    // Note: We need to pass the model from the request to the mapper
+    // Since OpenAI doesn't return the model in the response
+    final imageResponse = _mapper.mapImageResponse(openAIResponse);
+
+    // Update the model in the response to match the request
+    final model = openAIRequest.model as String? ?? 'dall-e-3';
+    return imageResponse.copyWith(
+      model: model,
+    );
   }
 
   @override

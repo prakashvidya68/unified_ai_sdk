@@ -5,7 +5,9 @@ import 'package:test/test.dart';
 import 'package:unified_ai_sdk/src/core/authentication.dart';
 import 'package:unified_ai_sdk/src/core/provider_config.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
+import 'package:unified_ai_sdk/src/models/base_enums.dart';
 import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
+import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
 import 'package:unified_ai_sdk/src/providers/openai/openai_provider.dart';
 
 // Mock HTTP client for testing
@@ -358,6 +360,173 @@ void main() {
           provider.embed(request),
           throwsA(isA<QuotaError>()),
         );
+      });
+    });
+
+    group('generateImage', () {
+      late OpenAIProvider provider;
+      late MockHttpClient mockClient;
+
+      setUp(() async {
+        mockClient = MockHttpClient();
+        provider = OpenAIProvider();
+        final config = ProviderConfig(
+          id: 'openai',
+          auth: ApiKeyAuth(apiKey: 'sk-test123'),
+          settings: {
+            'httpClient': mockClient,
+          },
+        );
+
+        await provider.init(config);
+      });
+
+      test('should successfully generate image', () async {
+        final mockResponseBody = jsonEncode({
+          'created': 1234567890,
+          'data': [
+            {
+              'url': 'https://example.com/image.png',
+              'revised_prompt':
+                  'A beautiful sunset over the ocean with vibrant colors',
+            }
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/images/generations',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ImageRequest(
+          prompt: 'A beautiful sunset over the ocean',
+          model: 'dall-e-3',
+          size: ImageSize.w1024h1024,
+        );
+
+        final response = await provider.generateImage(request);
+
+        expect(response, isNotNull);
+        expect(response.assets.length, equals(1));
+        expect(
+            response.assets.first.url, equals('https://example.com/image.png'));
+        expect(response.assets.first.revisedPrompt,
+            equals('A beautiful sunset over the ocean with vibrant colors'));
+        expect(response.model, equals('dall-e-3'));
+        expect(response.provider, equals('openai'));
+      });
+
+      test('should handle base64 response format', () async {
+        final mockResponseBody = jsonEncode({
+          'created': 1234567890,
+          'data': [
+            {
+              'b64_json':
+                  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+            }
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/images/generations',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ImageRequest(
+          prompt: 'A cat',
+          model: 'dall-e-3',
+          providerOptions: {
+            'openai': {'response_format': 'b64_json'},
+          },
+        );
+
+        final response = await provider.generateImage(request);
+
+        expect(response.assets.first.base64, isNotNull);
+        expect(response.assets.first.url, isNull);
+      });
+
+      test('should use default model when not specified', () async {
+        final mockResponseBody = jsonEncode({
+          'created': 1234567890,
+          'data': [
+            {
+              'url': 'https://example.com/image.png',
+            }
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/images/generations',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ImageRequest(
+          prompt: 'A beautiful landscape',
+          // model is null, should use default
+        );
+
+        final response = await provider.generateImage(request);
+        expect(response.model, equals('dall-e-3')); // Default model
+      });
+
+      test('should throw error for DALL-E 3 with n > 1', () async {
+        final request = ImageRequest(
+          prompt: 'A cat',
+          model: 'dall-e-3',
+          n: 2, // DALL-E 3 only supports n=1
+        );
+
+        expectLater(
+          provider.generateImage(request),
+          throwsA(isA<ClientError>()),
+        );
+      });
+
+      test('should handle HTTP errors correctly', () async {
+        mockClient.setResponse(
+          'https://api.openai.com/v1/images/generations',
+          http.Response('{"error": {"message": "Invalid API key"}}', 401),
+        );
+
+        final request = ImageRequest(
+          prompt: 'A beautiful sunset',
+          model: 'dall-e-3',
+        );
+
+        expectLater(
+          provider.generateImage(request),
+          throwsA(isA<AuthError>()),
+        );
+      });
+
+      test('should support DALL-E 2 with multiple images', () async {
+        final mockResponseBody = jsonEncode({
+          'created': 1234567890,
+          'data': [
+            {
+              'url': 'https://example.com/image1.png',
+            },
+            {
+              'url': 'https://example.com/image2.png',
+            },
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/images/generations',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ImageRequest(
+          prompt: 'A cat',
+          model: 'dall-e-2',
+          n: 2, // DALL-E 2 supports multiple images
+        );
+
+        final response = await provider.generateImage(request);
+        expect(response.assets.length, equals(2));
+        expect(response.model, equals('dall-e-2'));
       });
     });
   });
