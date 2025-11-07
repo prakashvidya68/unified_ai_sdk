@@ -17,11 +17,12 @@
 ///   messages: [Message(role: Role.user, content: 'Hello!')],
 ///   temperature: 0.7,
 /// );
-/// final openaiRequest = OpenAIMapper.mapChatRequest(chatRequest);
+/// final mapper = OpenAIMapper.instance;
+/// final openaiRequest = mapper.mapChatRequest(chatRequest);
 ///
 /// // OpenAI → SDK
 /// final openaiResponse = OpenAIChatResponse.fromJson(apiResponse);
-/// final chatResponse = OpenAIMapper.mapChatResponse(openaiResponse);
+/// final chatResponse = mapper.mapChatResponse(openaiResponse);
 /// ```
 
 import '../../error/error_types.dart';
@@ -38,24 +39,19 @@ import 'openai_models.dart';
 /// Mapper for converting between unified SDK models and OpenAI-specific models.
 ///
 /// Implements [ProviderMapper] to provide OpenAI-specific conversion logic.
-/// This class can be used both as a static utility (for backward compatibility)
-/// and as an instance implementing the [ProviderMapper] interface.
+/// This class uses a singleton pattern and provides instance methods for
+/// converting between unified SDK models and OpenAI-specific formats.
 ///
-/// **Usage patterns:**
-///
-/// **Static usage (convenience):**
-/// ```dart
-/// final request = OpenAIMapper.mapChatRequest(chatRequest);
-/// ```
-///
-/// **Instance usage (dependency injection):**
+/// **Usage:**
 /// ```dart
 /// final mapper = OpenAIMapper.instance;
 /// final request = mapper.mapChatRequest(chatRequest);
+/// final response = mapper.mapChatResponse(openaiResponse);
 /// ```
+///
 class OpenAIMapper implements ProviderMapper {
-  /// Private constructor to prevent instantiation when using static methods.
-  /// Use [OpenAIMapper.instance] for instance-based usage.
+  /// Private constructor to enforce singleton pattern.
+  /// Use [OpenAIMapper.instance] to access the mapper instance.
   OpenAIMapper._();
 
   /// Singleton instance for instance-based usage.

@@ -17,11 +17,13 @@ import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
 import '../base/model_fetcher.dart';
 import '../base/provider_mapper.dart';
 import 'openai_mapper.dart';
+import 'openai_models.dart';
 
 /// OpenAI provider implementation for the Unified AI SDK.
 ///
@@ -158,8 +160,10 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     final authHeaders = apiKeyAuth.buildHeaders();
 
     // Initialize HTTP client wrapper with authentication headers
+    // Allow injecting custom client for testing via settings
+    final customClient = config.settings['httpClient'] as http.Client?;
     _http = HttpClientWrapper(
-      client: http.Client(),
+      client: customClient ?? http.Client(),
       defaultHeaders: {
         ...authHeaders,
         'Content-Type': 'application/json',
@@ -271,8 +275,32 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
   @override
   Future<EmbeddingResponse> embed(EmbeddingRequest request) async {
-    // Will be implemented in Step 8.5
-    throw UnimplementedError('embed() will be implemented in Step 8.5');
+    // Validate that embedding is supported
+    validateCapability('embed');
+
+    // Map SDK request to OpenAI format
+    final openAIRequest = _mapper.mapEmbeddingRequest(
+      request,
+      defaultModel: _defaultModel,
+    );
+
+    // Make HTTP POST request to embeddings endpoint
+    final response = await _http.post(
+      '$_baseUrl/embeddings',
+      body: jsonEncode(openAIRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final openAIResponse = OpenAIEmbeddingResponse.fromJson(responseJson);
+
+    // Map OpenAI response to SDK format
+    return _mapper.mapEmbeddingResponse(openAIResponse);
   }
 
   @override
