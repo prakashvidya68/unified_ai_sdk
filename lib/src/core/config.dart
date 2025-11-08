@@ -1,5 +1,6 @@
 import '../cache/cache_config.dart';
 import '../error/error_types.dart';
+import '../retry/retry_policy.dart';
 import 'provider_config.dart';
 
 // Placeholder types - will be defined in later steps
@@ -10,29 +11,6 @@ import 'provider_config.dart';
 /// Note: TelemetryHandler needs to be created in lib/src/telemetry/telemetry_handler.dart
 abstract class TelemetryHandler {
   // This is a placeholder. Actual implementation will be in Step 19.1
-}
-
-/// Placeholder for RetryPolicy - will be replaced when Step 9.1 is completed
-/// Note: RetryPolicy needs to be created in lib/src/retry/retry_policy.dart
-class RetryPolicy {
-  // This is a placeholder. Actual implementation will be in Step 9.1
-
-  /// Placeholder constructor
-  RetryPolicy();
-
-  /// Placeholder factory for default retry policy
-  factory RetryPolicy.defaults() {
-    return RetryPolicy();
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is RetryPolicy;
-  }
-
-  @override
-  int get hashCode => runtimeType.hashCode;
 }
 
 /// Configuration for the Unified AI SDK.
