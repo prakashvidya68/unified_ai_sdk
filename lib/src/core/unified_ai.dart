@@ -7,6 +7,7 @@ import '../models/responses/embedding_response.dart';
 import '../models/responses/image_response.dart';
 import '../orchestrator/provider_registry.dart';
 import '../providers/base/ai_provider.dart';
+import '../providers/anthropic/anthropic_provider.dart';
 import '../providers/openai/openai_provider.dart';
 import '../retry/retry_handler.dart';
 import 'config.dart';
@@ -175,20 +176,21 @@ class UnifiedAI {
   ///
   /// **Supported Providers:**
   /// - `'openai'` → [OpenAIProvider]
+  /// - `'anthropic'` → [AnthropicProvider]
   /// - More providers will be added in future steps
   static AiProvider _createProvider(ProviderConfig config) {
     switch (config.id) {
       case 'openai':
         return OpenAIProvider();
+      case 'anthropic':
+        return AnthropicProvider();
       // Add more providers here as they are implemented
-      // case 'anthropic':
-      //   return AnthropicProvider();
       // case 'google':
       //   return GoogleProvider();
       default:
         throw ClientError(
           message: 'Unknown provider ID: "${config.id}". '
-              'Supported providers: openai',
+              'Supported providers: openai, anthropic',
           code: 'UNKNOWN_PROVIDER',
         );
     }
