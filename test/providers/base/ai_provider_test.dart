@@ -1,4 +1,6 @@
 import 'package:test/test.dart';
+import 'package:unified_ai_sdk/src/core/authentication.dart';
+import 'package:unified_ai_sdk/src/core/provider_config.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
 import 'package:unified_ai_sdk/src/models/base_enums.dart';
 import 'package:unified_ai_sdk/src/models/common/capabilities.dart';
@@ -120,7 +122,7 @@ void main() {
         final provider = MockProvider(
           id: 'test-provider',
           name: 'Test Provider',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         expect(provider.id, equals('test-provider'));
@@ -134,10 +136,13 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
 
         expect(provider.isInitialized, isTrue);
       });
@@ -148,7 +153,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsChat: false),
+          capabilities: ProviderCapabilities(supportsChat: false),
         );
 
         expect(
@@ -161,7 +166,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsChat: true),
+          capabilities: ProviderCapabilities(supportsChat: true),
         );
 
         expect(() => provider.validateCapability('chat'), returnsNormally);
@@ -171,7 +176,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsEmbedding: false),
+          capabilities: ProviderCapabilities(supportsEmbedding: false),
         );
 
         expect(
@@ -184,7 +189,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(
+          capabilities: ProviderCapabilities(
             supportsImageGeneration: false,
           ),
         );
@@ -199,7 +204,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsTTS: false),
+          capabilities: ProviderCapabilities(supportsTTS: false),
         );
 
         expect(
@@ -212,7 +217,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsSTT: false),
+          capabilities: ProviderCapabilities(supportsSTT: false),
         );
 
         expect(
@@ -225,7 +230,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsStreaming: false),
+          capabilities: ProviderCapabilities(supportsStreaming: false),
         );
 
         expect(
@@ -238,7 +243,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         expect(() => provider.validateCapability('unknown'), returnsNormally);
@@ -250,10 +255,13 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsChat: false),
+          capabilities: ProviderCapabilities(supportsChat: false),
         );
 
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
 
         expect(
           () => provider.chat(ChatRequest(
@@ -267,10 +275,13 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsChat: true),
+          capabilities: ProviderCapabilities(supportsChat: true),
         );
 
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
 
         final response = await provider.chat(ChatRequest(
           messages: [Message(role: Role.user, content: 'Test')],
@@ -284,7 +295,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(supportsStreaming: false),
+          capabilities: ProviderCapabilities(supportsStreaming: false),
         );
 
         final stream = provider.chatStream(ChatRequest(
@@ -297,7 +308,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(
+          capabilities: ProviderCapabilities(
             supportsChat: true,
             supportsStreaming: true,
           ),
@@ -315,10 +326,13 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
         final healthy = await provider.healthCheck();
         expect(healthy, isTrue);
       });
@@ -327,10 +341,13 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
         await provider.dispose();
 
         final healthy = await provider.healthCheck();
@@ -343,10 +360,13 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
         expect(provider.isDisposed, isFalse);
 
         await provider.dispose();
@@ -359,14 +379,14 @@ void main() {
         final provider = MockProvider(
           id: 'full-featured',
           name: 'Full Featured Provider',
-          capabilities: const ProviderCapabilities(
+          capabilities: ProviderCapabilities(
             supportsChat: true,
             supportsEmbedding: true,
             supportsImageGeneration: true,
             supportsTTS: true,
             supportsSTT: true,
             supportsStreaming: true,
-            supportedModels: ['model-1', 'model-2'],
+            fallbackModels: ['model-1', 'model-2'],
           ),
         );
 

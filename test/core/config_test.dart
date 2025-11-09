@@ -4,6 +4,7 @@ import 'package:unified_ai_sdk/src/core/authentication.dart';
 import 'package:unified_ai_sdk/src/core/config.dart';
 import 'package:unified_ai_sdk/src/core/provider_config.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
+import 'package:unified_ai_sdk/src/retry/retry_policy.dart';
 
 // Mock implementations for testing
 class MockTelemetryHandler extends TelemetryHandler {}

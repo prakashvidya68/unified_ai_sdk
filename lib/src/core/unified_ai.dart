@@ -5,7 +5,9 @@ import '../models/requests/image_request.dart';
 import '../models/responses/chat_response.dart';
 import '../models/responses/embedding_response.dart';
 import '../models/responses/image_response.dart';
+import '../orchestrator/intent_detector.dart';
 import '../orchestrator/provider_registry.dart';
+import '../orchestrator/request_router.dart';
 import '../providers/base/ai_provider.dart';
 import '../providers/anthropic/anthropic_provider.dart';
 import '../providers/cohere/cohere_provider.dart';
@@ -68,6 +70,9 @@ class UnifiedAI {
   /// Handler for executing operations with automatic retry logic.
   final RetryHandler _retryHandler;
 
+  /// Router for selecting appropriate providers based on intent or explicit selection.
+  final RequestRouter _router;
+
   /// Private constructor for singleton pattern.
   ///
   /// Use [init] to create and initialize the instance.
@@ -75,9 +80,11 @@ class UnifiedAI {
     required UnifiedAIConfig config,
     required ProviderRegistry registry,
     required RetryHandler retryHandler,
+    required RequestRouter router,
   })  : _config = config,
         _registry = registry,
-        _retryHandler = retryHandler;
+        _retryHandler = retryHandler,
+        _router = router;
 
   /// Gets the singleton instance of [UnifiedAI].
   ///
@@ -144,6 +151,11 @@ class UnifiedAI {
     // Build dependencies
     final registry = ProviderRegistry();
     final retryHandler = RetryHandler(policy: config.retryPolicy);
+    final intentDetector = IntentDetector();
+    final router = RequestRouter(
+      registry: registry,
+      intentDetector: intentDetector,
+    );
 
     // Create and initialize providers from config
     for (final providerConfig in config.perProviderConfig.values) {
@@ -157,6 +169,7 @@ class UnifiedAI {
       config: config,
       registry: registry,
       retryHandler: retryHandler,
+      router: router,
     );
 
     return _instance!;
@@ -252,20 +265,22 @@ class UnifiedAI {
   /// Sends a chat request to an AI provider and returns the response.
   ///
   /// This is the main method for interacting with AI chat models. It handles
-  /// provider selection, automatic retries, and error handling.
+  /// provider selection (explicit or automatic intent-based routing), automatic
+  /// retries, and error handling.
   ///
   /// **Parameters:**
-  /// - [provider]: Optional provider ID to use. If not specified, uses
-  ///   [config.defaultProvider]. If no default provider is configured,
-  ///   throws [ClientError].
+  /// - [provider]: Optional provider ID to use. If not specified, the router
+  ///   will automatically detect intent from the request and select an appropriate
+  ///   provider. If [config.defaultProvider] is set, it will be used as a fallback
+  ///   when intent-based routing is not possible.
   /// - [request]: The chat request containing messages and generation parameters.
   ///
   /// **Returns:**
   /// A [ChatResponse] containing the AI model's response.
   ///
   /// **Throws:**
-  /// - [ClientError] if no provider is specified and no default provider is configured
-  /// - [ClientError] if the specified provider is not found
+  /// - [ClientError] if explicit provider is specified but not found
+  /// - [CapabilityError] if no providers support the detected capability
   /// - [CapabilityError] if the selected provider doesn't support chat
   /// - [AuthError] if authentication fails (after retries)
   /// - [QuotaError] if rate limits are exceeded (after retries)
@@ -275,7 +290,7 @@ class UnifiedAI {
   /// ```dart
   /// final ai = UnifiedAI.instance;
   ///
-  /// // Use default provider
+  /// // Automatic intent-based routing (detects chat intent)
   /// final response = await ai.chat(
   ///   request: ChatRequest(
   ///     messages: [
@@ -284,7 +299,7 @@ class UnifiedAI {
   ///   ),
   /// );
   ///
-  /// // Use specific provider
+  /// // Explicit provider selection
   /// final response2 = await ai.chat(
   ///   provider: 'openai',
   ///   request: ChatRequest(
@@ -294,14 +309,27 @@ class UnifiedAI {
   ///     maxTokens: 500,
   ///   ),
   /// );
+  ///
+  /// // Automatic routing with image intent detection
+  /// final response3 = await ai.chat(
+  ///   request: ChatRequest(
+  ///     messages: [
+  ///       Message(role: Role.user, content: 'Draw a picture of a cat'),
+  ///     ],
+  ///   ),
+  /// );
+  /// // Automatically routes to a provider that supports image generation
   /// ```
   Future<ChatResponse> chat({
     String? provider,
     required ChatRequest request,
   }) async {
     return _retryHandler.execute(() async {
-      final selectedProvider =
-          _getProvider(provider ?? _config.defaultProvider);
+      // Use router for provider selection (handles explicit provider or intent-based routing)
+      final selectedProvider = await _router.route(
+        provider ?? _config.defaultProvider,
+        request,
+      );
       return await selectedProvider.chat(request);
     });
   }
@@ -309,21 +337,21 @@ class UnifiedAI {
   /// Generates embeddings for text inputs using an AI provider.
   ///
   /// This method converts text inputs into vector representations (embeddings)
-  /// that capture semantic meaning. It handles provider selection, automatic
-  /// retries, and error handling.
+  /// that capture semantic meaning. It handles provider selection (explicit or
+  /// automatic intent-based routing), automatic retries, and error handling.
   ///
   /// **Parameters:**
-  /// - [provider]: Optional provider ID to use. If not specified, uses
-  ///   [config.defaultProvider]. If no default provider is configured,
-  ///   throws [ClientError].
+  /// - [provider]: Optional provider ID to use. If not specified, the router
+  ///   will automatically detect intent from the request and select an appropriate
+  ///   provider. For [EmbeddingRequest], the intent is always 'embedding'.
   /// - [request]: The embedding request containing text inputs and model parameters.
   ///
   /// **Returns:**
   /// An [EmbeddingResponse] containing the embedding vectors.
   ///
   /// **Throws:**
-  /// - [ClientError] if no provider is specified and no default provider is configured
-  /// - [ClientError] if the specified provider is not found
+  /// - [ClientError] if explicit provider is specified but not found
+  /// - [CapabilityError] if no providers support the embedding capability
   /// - [CapabilityError] if the selected provider doesn't support embeddings
   /// - [AuthError] if authentication fails (after retries)
   /// - [QuotaError] if rate limits are exceeded (after retries)
@@ -333,7 +361,7 @@ class UnifiedAI {
   /// ```dart
   /// final ai = UnifiedAI.instance;
   ///
-  /// // Use default provider
+  /// // Automatic intent-based routing (detects embedding intent)
   /// final response = await ai.embed(
   ///   request: EmbeddingRequest(
   ///     inputs: ['Hello, world!', 'How are you?'],
@@ -341,7 +369,7 @@ class UnifiedAI {
   ///   ),
   /// );
   ///
-  /// // Use specific provider
+  /// // Explicit provider selection
   /// final response2 = await ai.embed(
   ///   provider: 'openai',
   ///   request: EmbeddingRequest(
@@ -360,8 +388,11 @@ class UnifiedAI {
     required EmbeddingRequest request,
   }) async {
     return _retryHandler.execute(() async {
-      final selectedProvider =
-          _getProvider(provider ?? _config.defaultProvider);
+      // Use router for provider selection (handles explicit provider or intent-based routing)
+      final selectedProvider = await _router.route(
+        provider ?? _config.defaultProvider,
+        request,
+      );
       return await selectedProvider.embed(request);
     });
   }
@@ -369,21 +400,21 @@ class UnifiedAI {
   /// Generates images from text prompts using an AI provider.
   ///
   /// This method converts text descriptions into images using AI models like
-  /// DALL-E, Stable Diffusion, or Midjourney. It handles provider selection,
-  /// automatic retries, and error handling.
+  /// DALL-E, Stable Diffusion, or Midjourney. It handles provider selection
+  /// (explicit or automatic intent-based routing), automatic retries, and error handling.
   ///
   /// **Parameters:**
-  /// - [provider]: Optional provider ID to use. If not specified, uses
-  ///   [config.defaultProvider]. If no default provider is configured,
-  ///   throws [ClientError].
+  /// - [provider]: Optional provider ID to use. If not specified, the router
+  ///   will automatically detect intent from the request and select an appropriate
+  ///   provider. For [ImageRequest], the intent is always 'image_generation'.
   /// - [request]: The image generation request containing prompt and parameters.
   ///
   /// **Returns:**
   /// An [ImageResponse] containing the generated image assets.
   ///
   /// **Throws:**
-  /// - [ClientError] if no provider is specified and no default provider is configured
-  /// - [ClientError] if the specified provider is not found
+  /// - [ClientError] if explicit provider is specified but not found
+  /// - [CapabilityError] if no providers support the image generation capability
   /// - [CapabilityError] if the selected provider doesn't support image generation
   /// - [AuthError] if authentication fails (after retries)
   /// - [QuotaError] if rate limits are exceeded (after retries)
@@ -393,7 +424,7 @@ class UnifiedAI {
   /// ```dart
   /// final ai = UnifiedAI.instance;
   ///
-  /// // Use default provider
+  /// // Automatic intent-based routing (detects image_generation intent)
   /// final response = await ai.generateImage(
   ///   request: ImageRequest(
   ///     prompt: 'A beautiful sunset over the ocean',
@@ -402,7 +433,7 @@ class UnifiedAI {
   ///   ),
   /// );
   ///
-  /// // Use specific provider
+  /// // Explicit provider selection
   /// final response2 = await ai.generateImage(
   ///   provider: 'openai',
   ///   request: ImageRequest(
@@ -426,48 +457,24 @@ class UnifiedAI {
     required ImageRequest request,
   }) async {
     return _retryHandler.execute(() async {
-      final selectedProvider =
-          _getProvider(provider ?? _config.defaultProvider);
+      // Use router for provider selection (handles explicit provider or intent-based routing)
+      final selectedProvider = await _router.route(
+        provider ?? _config.defaultProvider,
+        request,
+      );
       return await selectedProvider.generateImage(request);
     });
   }
 
-  /// Gets a provider by ID, throwing appropriate errors if not found.
+  /// Gets the request router used for provider selection.
   ///
-  /// This is a helper method that wraps [getProvider] with error handling.
-  /// It throws [ClientError] if the provider ID is null or the provider
-  /// is not found in the registry.
-  ///
-  /// **Parameters:**
-  /// - [providerId]: The provider ID to look up. Can be `null`.
+  /// This can be used for advanced use cases where you need to access
+  /// the router directly, but typically you should use the high-level
+  /// methods like [chat], [embed], and [generateImage] instead.
   ///
   /// **Returns:**
-  /// The [AiProvider] instance if found.
-  ///
-  /// **Throws:**
-  /// - [ClientError] if [providerId] is `null`
-  /// - [ClientError] if the provider is not found in the registry
-  AiProvider _getProvider(String? providerId) {
-    if (providerId == null) {
-      throw ClientError(
-        message: 'No provider specified and no default provider configured. '
-            'Either specify a provider or set defaultProvider in UnifiedAIConfig.',
-        code: 'NO_PROVIDER_SPECIFIED',
-      );
-    }
-
-    final provider = _registry.get(providerId);
-    if (provider == null) {
-      final availableProviders = _registry.getAllIds();
-      throw ClientError(
-        message: 'Provider "$providerId" not found. '
-            'Available providers: ${availableProviders.isEmpty ? "none" : availableProviders.join(", ")}',
-        code: 'PROVIDER_NOT_FOUND',
-      );
-    }
-
-    return provider;
-  }
+  /// The [RequestRouter] instance used by this SDK.
+  RequestRouter get router => _router;
 
   /// Disposes the SDK instance and cleans up resources.
   ///

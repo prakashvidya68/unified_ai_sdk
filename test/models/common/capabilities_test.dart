@@ -5,7 +5,7 @@ void main() {
   group('ProviderCapabilities', () {
     group('Construction', () {
       test('should create with default values', () {
-        const capabilities = ProviderCapabilities();
+        final capabilities = ProviderCapabilities();
 
         expect(capabilities.supportsChat, isFalse);
         expect(capabilities.supportsEmbedding, isFalse);
@@ -17,14 +17,14 @@ void main() {
       });
 
       test('should create with all capabilities enabled', () {
-        const capabilities = ProviderCapabilities(
+        final capabilities = ProviderCapabilities(
           supportsChat: true,
           supportsEmbedding: true,
           supportsImageGeneration: true,
           supportsTTS: true,
           supportsSTT: true,
           supportsStreaming: true,
-          supportedModels: ['gpt-4', 'gpt-3.5-turbo'],
+          fallbackModels: ['gpt-4', 'gpt-3.5-turbo'],
         );
 
         expect(capabilities.supportsChat, isTrue);
@@ -33,11 +33,12 @@ void main() {
         expect(capabilities.supportsTTS, isTrue);
         expect(capabilities.supportsSTT, isTrue);
         expect(capabilities.supportsStreaming, isTrue);
-        expect(capabilities.supportedModels, equals(['gpt-4', 'gpt-3.5-turbo']));
+        expect(
+            capabilities.supportedModels, equals(['gpt-4', 'gpt-3.5-turbo']));
       });
 
       test('should create with partial capabilities', () {
-        const capabilities = ProviderCapabilities(
+        final capabilities = ProviderCapabilities(
           supportsChat: true,
           supportsStreaming: true,
         );
@@ -128,14 +129,14 @@ void main() {
 
     group('toJson', () {
       test('should serialize to JSON with camelCase keys', () {
-        const capabilities = ProviderCapabilities(
+        final capabilities = ProviderCapabilities(
           supportsChat: true,
           supportsEmbedding: false,
           supportsImageGeneration: true,
           supportsTTS: false,
           supportsSTT: true,
           supportsStreaming: false,
-          supportedModels: ['model-1', 'model-2'],
+          fallbackModels: ['model-1', 'model-2'],
         );
 
         final json = capabilities.toJson();
@@ -150,7 +151,7 @@ void main() {
       });
 
       test('should include all fields even when false', () {
-        const capabilities = ProviderCapabilities();
+        final capabilities = ProviderCapabilities();
 
         final json = capabilities.toJson();
 
@@ -164,11 +165,11 @@ void main() {
       });
 
       test('should round-trip through JSON', () {
-        const original = ProviderCapabilities(
+        final original = ProviderCapabilities(
           supportsChat: true,
           supportsEmbedding: true,
           supportsStreaming: true,
-          supportedModels: ['gpt-4', 'gpt-3.5'],
+          fallbackModels: ['gpt-4', 'gpt-3.5'],
         );
 
         final json = original.toJson();
@@ -180,7 +181,7 @@ void main() {
 
     group('copyWith', () {
       test('should create copy with updated fields', () {
-        const original = ProviderCapabilities(
+        final original = ProviderCapabilities(
           supportsChat: true,
           supportsEmbedding: false,
         );
@@ -192,10 +193,10 @@ void main() {
       });
 
       test('should preserve unchanged fields', () {
-        const original = ProviderCapabilities(
+        final original = ProviderCapabilities(
           supportsChat: true,
           supportsStreaming: true,
-          supportedModels: ['model-1'],
+          fallbackModels: ['model-1'],
         );
 
         final updated = original.copyWith(supportsEmbedding: true);
@@ -207,24 +208,24 @@ void main() {
       });
 
       test('should update supportedModels', () {
-        const original = ProviderCapabilities(
-          supportedModels: ['model-1'],
+        final original = ProviderCapabilities(
+          fallbackModels: ['model-1'],
         );
 
         final updated = original.copyWith(
-          supportedModels: ['model-1', 'model-2'],
+          fallbackModels: ['model-1', 'model-2'],
         );
 
         expect(updated.supportedModels, equals(['model-1', 'model-2']));
       });
 
       test('should allow updating multiple fields', () {
-        const original = ProviderCapabilities();
+        final original = ProviderCapabilities();
 
         final updated = original.copyWith(
           supportsChat: true,
           supportsStreaming: true,
-          supportedModels: ['gpt-4'],
+          fallbackModels: ['gpt-4'],
         );
 
         expect(updated.supportsChat, isTrue);
@@ -235,15 +236,15 @@ void main() {
 
     group('Equality', () {
       test('should be equal with same values', () {
-        const capabilities1 = ProviderCapabilities(
+        final capabilities1 = ProviderCapabilities(
           supportsChat: true,
           supportsStreaming: true,
-          supportedModels: ['gpt-4'],
+          fallbackModels: ['gpt-4'],
         );
-        const capabilities2 = ProviderCapabilities(
+        final capabilities2 = ProviderCapabilities(
           supportsChat: true,
           supportsStreaming: true,
-          supportedModels: ['gpt-4'],
+          fallbackModels: ['gpt-4'],
         );
 
         expect(capabilities1, equals(capabilities2));
@@ -251,37 +252,37 @@ void main() {
       });
 
       test('should not be equal with different boolean values', () {
-        const capabilities1 = ProviderCapabilities(supportsChat: true);
-        const capabilities2 = ProviderCapabilities(supportsChat: false);
+        final capabilities1 = ProviderCapabilities(supportsChat: true);
+        final capabilities2 = ProviderCapabilities(supportsChat: false);
 
         expect(capabilities1, isNot(equals(capabilities2)));
       });
 
       test('should not be equal with different supportedModels', () {
-        const capabilities1 = ProviderCapabilities(
-          supportedModels: ['model-1'],
+        final capabilities1 = ProviderCapabilities(
+          fallbackModels: ['model-1'],
         );
-        const capabilities2 = ProviderCapabilities(
-          supportedModels: ['model-2'],
+        final capabilities2 = ProviderCapabilities(
+          fallbackModels: ['model-2'],
         );
 
         expect(capabilities1, isNot(equals(capabilities2)));
       });
 
       test('should not be equal with different order of models', () {
-        const capabilities1 = ProviderCapabilities(
-          supportedModels: ['model-1', 'model-2'],
+        final capabilities1 = ProviderCapabilities(
+          fallbackModels: ['model-1', 'model-2'],
         );
-        const capabilities2 = ProviderCapabilities(
-          supportedModels: ['model-2', 'model-1'],
+        final capabilities2 = ProviderCapabilities(
+          fallbackModels: ['model-2', 'model-1'],
         );
 
         expect(capabilities1, isNot(equals(capabilities2)));
       });
 
       test('should be equal with empty models lists', () {
-        const capabilities1 = ProviderCapabilities();
-        const capabilities2 = ProviderCapabilities();
+        final capabilities1 = ProviderCapabilities();
+        final capabilities2 = ProviderCapabilities();
 
         expect(capabilities1, equals(capabilities2));
       });
@@ -289,7 +290,7 @@ void main() {
 
     group('toString', () {
       test('should format with no capabilities', () {
-        const capabilities = ProviderCapabilities();
+        final capabilities = ProviderCapabilities();
 
         final str = capabilities.toString();
 
@@ -298,7 +299,7 @@ void main() {
       });
 
       test('should format with single capability', () {
-        const capabilities = ProviderCapabilities(supportsChat: true);
+        final capabilities = ProviderCapabilities(supportsChat: true);
 
         final str = capabilities.toString();
 
@@ -307,7 +308,7 @@ void main() {
       });
 
       test('should format with multiple capabilities', () {
-        const capabilities = ProviderCapabilities(
+        final capabilities = ProviderCapabilities(
           supportsChat: true,
           supportsEmbedding: true,
           supportsStreaming: true,
@@ -321,9 +322,9 @@ void main() {
       });
 
       test('should format with supported models', () {
-        const capabilities = ProviderCapabilities(
+        final capabilities = ProviderCapabilities(
           supportsChat: true,
-          supportedModels: ['gpt-4', 'gpt-3.5'],
+          fallbackModels: ['gpt-4', 'gpt-3.5'],
         );
 
         final str = capabilities.toString();
@@ -333,7 +334,7 @@ void main() {
       });
 
       test('should format all capabilities', () {
-        const capabilities = ProviderCapabilities(
+        final capabilities = ProviderCapabilities(
           supportsChat: true,
           supportsEmbedding: true,
           supportsImageGeneration: true,
@@ -356,7 +357,7 @@ void main() {
     group('Edge cases', () {
       test('should handle large list of supported models', () {
         final models = List.generate(100, (i) => 'model-$i');
-        final capabilities = ProviderCapabilities(supportedModels: models);
+        final capabilities = ProviderCapabilities(fallbackModels: models);
 
         expect(capabilities.supportedModels.length, equals(100));
         expect(capabilities.supportedModels.first, equals('model-0'));
@@ -364,16 +365,16 @@ void main() {
       });
 
       test('should handle empty string in supportedModels', () {
-        const capabilities = ProviderCapabilities(
-          supportedModels: ['', 'model-1'],
+        final capabilities = ProviderCapabilities(
+          fallbackModels: ['', 'model-1'],
         );
 
         expect(capabilities.supportedModels, equals(['', 'model-1']));
       });
 
       test('should handle duplicate models in list', () {
-        const capabilities = ProviderCapabilities(
-          supportedModels: ['model-1', 'model-1'],
+        final capabilities = ProviderCapabilities(
+          fallbackModels: ['model-1', 'model-1'],
         );
 
         expect(capabilities.supportedModels, equals(['model-1', 'model-1']));
@@ -381,4 +382,3 @@ void main() {
     });
   });
 }
-

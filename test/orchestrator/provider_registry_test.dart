@@ -1,8 +1,9 @@
 import 'package:test/test.dart';
+import 'package:unified_ai_sdk/src/core/provider_config.dart';
+import 'package:unified_ai_sdk/src/core/authentication.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
 import 'package:unified_ai_sdk/src/models/common/capabilities.dart';
 import 'package:unified_ai_sdk/src/orchestrator/provider_registry.dart';
-import 'package:unified_ai_sdk/src/providers/base/ai_provider.dart';
 
 // Import MockProvider from ai_provider_test.dart
 import '../providers/base/ai_provider_test.dart';
@@ -20,7 +21,7 @@ void main() {
         final provider = MockProvider(
           id: 'test-provider',
           name: 'Test Provider',
-          capabilities: const ProviderCapabilities(supportsChat: true),
+          capabilities: ProviderCapabilities(supportsChat: true),
         );
 
         expect(() => registry.register(provider), returnsNormally);
@@ -32,12 +33,12 @@ void main() {
         final provider1 = MockProvider(
           id: 'duplicate-id',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         final provider2 = MockProvider(
           id: 'duplicate-id',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         registry.register(provider1);
@@ -56,7 +57,7 @@ void main() {
         final provider = MockProvider(
           id: '',
           name: 'Empty ID Provider',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         expect(
@@ -73,17 +74,17 @@ void main() {
         final provider1 = MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         final provider2 = MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         final provider3 = MockProvider(
           id: 'provider-3',
           name: 'Provider 3',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         registry.register(provider1);
@@ -102,7 +103,7 @@ void main() {
         final provider = MockProvider(
           id: 'test-provider',
           name: 'Test Provider',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         registry.register(provider);
@@ -127,7 +128,7 @@ void main() {
         final provider = MockProvider(
           id: 'TestProvider',
           name: 'Test Provider',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         registry.register(provider);
@@ -143,17 +144,17 @@ void main() {
         final chatProvider1 = MockProvider(
           id: 'chat-1',
           name: 'Chat Provider 1',
-          capabilities: const ProviderCapabilities(supportsChat: true),
+          capabilities: ProviderCapabilities(supportsChat: true),
         );
         final chatProvider2 = MockProvider(
           id: 'chat-2',
           name: 'Chat Provider 2',
-          capabilities: const ProviderCapabilities(supportsChat: true),
+          capabilities: ProviderCapabilities(supportsChat: true),
         );
         final nonChatProvider = MockProvider(
           id: 'non-chat',
           name: 'Non-Chat Provider',
-          capabilities: const ProviderCapabilities(supportsChat: false),
+          capabilities: ProviderCapabilities(supportsChat: false),
         );
 
         registry.register(chatProvider1);
@@ -172,12 +173,12 @@ void main() {
         final embeddingProvider = MockProvider(
           id: 'embed-provider',
           name: 'Embedding Provider',
-          capabilities: const ProviderCapabilities(supportsEmbedding: true),
+          capabilities: ProviderCapabilities(supportsEmbedding: true),
         );
         final nonEmbeddingProvider = MockProvider(
           id: 'non-embed',
           name: 'Non-Embedding Provider',
-          capabilities: const ProviderCapabilities(supportsEmbedding: false),
+          capabilities: ProviderCapabilities(supportsEmbedding: false),
         );
 
         registry.register(embeddingProvider);
@@ -197,14 +198,14 @@ void main() {
         final imageProvider = MockProvider(
           id: 'image-provider',
           name: 'Image Provider',
-          capabilities: const ProviderCapabilities(
+          capabilities: ProviderCapabilities(
             supportsImageGeneration: true,
           ),
         );
         final nonImageProvider = MockProvider(
           id: 'non-image',
           name: 'Non-Image Provider',
-          capabilities: const ProviderCapabilities(
+          capabilities: ProviderCapabilities(
             supportsImageGeneration: false,
           ),
         );
@@ -225,7 +226,7 @@ void main() {
         final ttsProvider = MockProvider(
           id: 'tts-provider',
           name: 'TTS Provider',
-          capabilities: const ProviderCapabilities(supportsTTS: true),
+          capabilities: ProviderCapabilities(supportsTTS: true),
         );
         registry.register(ttsProvider);
 
@@ -238,7 +239,7 @@ void main() {
         final sttProvider = MockProvider(
           id: 'stt-provider',
           name: 'STT Provider',
-          capabilities: const ProviderCapabilities(supportsSTT: true),
+          capabilities: ProviderCapabilities(supportsSTT: true),
         );
         registry.register(sttProvider);
 
@@ -251,12 +252,12 @@ void main() {
         final streamingProvider = MockProvider(
           id: 'streaming-provider',
           name: 'Streaming Provider',
-          capabilities: const ProviderCapabilities(supportsStreaming: true),
+          capabilities: ProviderCapabilities(supportsStreaming: true),
         );
         final nonStreamingProvider = MockProvider(
           id: 'non-streaming',
           name: 'Non-Streaming Provider',
-          capabilities: const ProviderCapabilities(supportsStreaming: false),
+          capabilities: ProviderCapabilities(supportsStreaming: false),
         );
 
         registry.register(streamingProvider);
@@ -271,7 +272,7 @@ void main() {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         registry.register(provider);
 
@@ -283,7 +284,7 @@ void main() {
         final chatProvider = MockProvider(
           id: 'chat-provider',
           name: 'Chat Provider',
-          capabilities: const ProviderCapabilities(supportsChat: true),
+          capabilities: ProviderCapabilities(supportsChat: true),
         );
         registry.register(chatProvider);
 
@@ -296,7 +297,7 @@ void main() {
         final multiCapProvider = MockProvider(
           id: 'multi-cap',
           name: 'Multi-Cap Provider',
-          capabilities: const ProviderCapabilities(
+          capabilities: ProviderCapabilities(
             supportsChat: true,
             supportsEmbedding: true,
             supportsStreaming: true,
@@ -324,17 +325,17 @@ void main() {
         registry.register(MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
         registry.register(MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
         registry.register(MockProvider(
           id: 'provider-3',
           name: 'Provider 3',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
 
         final ids = registry.getAllIds();
@@ -352,12 +353,12 @@ void main() {
         final provider1 = MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         final provider2 = MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         registry.register(provider1);
@@ -375,7 +376,7 @@ void main() {
         registry.register(MockProvider(
           id: 'test-provider',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
 
         expect(registry.has('test-provider'), isTrue);
@@ -401,14 +402,14 @@ void main() {
         registry.register(MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
         expect(registry.count, equals(1));
 
         registry.register(MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
         expect(registry.count, equals(2));
       });
@@ -419,7 +420,7 @@ void main() {
         final provider = MockProvider(
           id: 'test-provider',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         registry.register(provider);
 
@@ -433,10 +434,13 @@ void main() {
         final provider = MockProvider(
           id: 'test-provider',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         registry.register(provider);
-        await provider.init(ProviderConfig());
+        await provider.init(ProviderConfig(
+          id: 'test-provider',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
 
         expect(provider.isDisposed, isFalse);
 
@@ -448,7 +452,7 @@ void main() {
         final provider = MockProvider(
           id: 'test-provider',
           name: 'Test',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         registry.register(provider);
 
@@ -467,12 +471,12 @@ void main() {
         registry.register(MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
         registry.register(MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
 
         expect(registry.count, equals(2));
@@ -486,18 +490,24 @@ void main() {
         final provider1 = MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         final provider2 = MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
 
         registry.register(provider1);
         registry.register(provider2);
-        await provider1.init(ProviderConfig());
-        await provider2.init(ProviderConfig());
+        await provider1.init(ProviderConfig(
+          id: 'provider-1',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
+        await provider2.init(ProviderConfig(
+          id: 'provider-2',
+          auth: ApiKeyAuth(apiKey: 'test-key'),
+        ));
 
         await registry.clear(dispose: true);
 
@@ -509,7 +519,7 @@ void main() {
         final provider = MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         );
         registry.register(provider);
 
@@ -528,12 +538,12 @@ void main() {
         registry.register(MockProvider(
           id: 'provider-1',
           name: 'Provider 1',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
         registry.register(MockProvider(
           id: 'provider-2',
           name: 'Provider 2',
-          capabilities: const ProviderCapabilities(),
+          capabilities: ProviderCapabilities(),
         ));
 
         final str = registry.toString();

@@ -13,7 +13,6 @@ import 'package:unified_ai_sdk/src/models/requests/chat_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
 import 'package:unified_ai_sdk/src/orchestrator/provider_registry.dart';
-import 'package:unified_ai_sdk/src/providers/base/ai_provider.dart';
 import 'package:unified_ai_sdk/src/retry/retry_handler.dart';
 import 'package:unified_ai_sdk/src/retry/retry_policy.dart';
 
