@@ -269,8 +269,32 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
   @override
   Future<ChatResponse> chat(ChatRequest request) async {
-    // Will be implemented in Step 8.4
-    throw UnimplementedError('chat() will be implemented in Step 8.4');
+    // Validate that chat is supported
+    validateCapability('chat');
+
+    // Map SDK request to OpenAI format
+    final openAIRequest = _mapper.mapChatRequest(
+      request,
+      defaultModel: _defaultModel,
+    );
+
+    // Make HTTP POST request to chat/completions endpoint
+    final response = await _http.post(
+      '$_baseUrl/chat/completions',
+      body: jsonEncode(openAIRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final openAIResponse = OpenAIChatResponse.fromJson(responseJson);
+
+    // Map OpenAI response to SDK format
+    return _mapper.mapChatResponse(openAIResponse);
   }
 
   @override

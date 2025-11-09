@@ -6,6 +6,8 @@ import 'package:unified_ai_sdk/src/core/authentication.dart';
 import 'package:unified_ai_sdk/src/core/provider_config.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
 import 'package:unified_ai_sdk/src/models/base_enums.dart';
+import 'package:unified_ai_sdk/src/models/common/message.dart';
+import 'package:unified_ai_sdk/src/models/requests/chat_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
 import 'package:unified_ai_sdk/src/providers/openai/openai_provider.dart';
@@ -527,6 +529,398 @@ void main() {
         final response = await provider.generateImage(request);
         expect(response.assets.length, equals(2));
         expect(response.model, equals('dall-e-2'));
+      });
+    });
+
+    group('chat', () {
+      late OpenAIProvider provider;
+      late MockHttpClient mockClient;
+
+      setUp(() async {
+        mockClient = MockHttpClient();
+        provider = OpenAIProvider();
+        final config = ProviderConfig(
+          id: 'openai',
+          auth: ApiKeyAuth(apiKey: 'sk-test123'),
+          settings: {
+            'httpClient': mockClient,
+          },
+        );
+
+        await provider.init(config);
+      });
+
+      test('should successfully send chat request', () async {
+        final mockResponseBody = jsonEncode({
+          'id': 'chatcmpl-123',
+          'object': 'chat.completion',
+          'created': 1677652288,
+          'model': 'gpt-4o',
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': 'Hello! How can I help you?',
+              },
+              'finish_reason': 'stop',
+            }
+          ],
+          'usage': {
+            'prompt_tokens': 9,
+            'completion_tokens': 12,
+            'total_tokens': 21,
+          },
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ChatRequest(
+          messages: [
+            const Message(role: Role.user, content: 'Hello!'),
+          ],
+          model: 'gpt-4o',
+        );
+
+        final response = await provider.chat(request);
+
+        expect(response, isNotNull);
+        expect(response.choices.length, equals(1));
+        expect(response.choices.first.message.content,
+            equals('Hello! How can I help you?'));
+        expect(response.model, equals('gpt-4o'));
+        expect(response.provider, equals('openai'));
+        expect(response.usage, isNotNull);
+        expect(response.usage.totalTokens, equals(21));
+      });
+
+      test('should handle multiple choices', () async {
+        final mockResponseBody = jsonEncode({
+          'id': 'chatcmpl-123',
+          'object': 'chat.completion',
+          'created': 1677652288,
+          'model': 'gpt-4o',
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': 'First response',
+              },
+              'finish_reason': 'stop',
+            },
+            {
+              'index': 1,
+              'message': {
+                'role': 'assistant',
+                'content': 'Second response',
+              },
+              'finish_reason': 'stop',
+            },
+          ],
+          'usage': {
+            'prompt_tokens': 5,
+            'completion_tokens': 20,
+            'total_tokens': 25,
+          },
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ChatRequest(
+          messages: [const Message(role: Role.user, content: 'Test')],
+          model: 'gpt-4o',
+          n: 2,
+        );
+
+        final response = await provider.chat(request);
+
+        expect(response.choices.length, equals(2));
+        expect(response.choices[0].message.content, equals('First response'));
+        expect(response.choices[1].message.content, equals('Second response'));
+      });
+
+      test('should use default model when model is not specified', () async {
+        final provider = OpenAIProvider();
+        final config = ProviderConfig(
+          id: 'openai',
+          auth: ApiKeyAuth(apiKey: 'sk-test123'),
+          settings: {
+            'defaultModel': 'gpt-4',
+            'httpClient': mockClient,
+          },
+        );
+        await provider.init(config);
+
+        final mockResponseBody = jsonEncode({
+          'id': 'chatcmpl-123',
+          'object': 'chat.completion',
+          'created': 1677652288,
+          'model': 'gpt-4',
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': 'Response',
+              },
+              'finish_reason': 'stop',
+            }
+          ],
+          'usage': {
+            'prompt_tokens': 5,
+            'completion_tokens': 10,
+            'total_tokens': 15,
+          },
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ChatRequest(
+          messages: [const Message(role: Role.user, content: 'Test')],
+          // model is null, should use default
+        );
+
+        final response = await provider.chat(request);
+        expect(response.model, equals('gpt-4'));
+      });
+
+      test('should throw error when model is not specified and no default',
+          () async {
+        final request = ChatRequest(
+          messages: [const Message(role: Role.user, content: 'Hello')],
+          // model is null and no default model set
+        );
+
+        expectLater(
+          provider.chat(request),
+          throwsA(isA<ClientError>()),
+        );
+      });
+
+      test('should handle HTTP errors correctly', () async {
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response('{"error": {"message": "Invalid API key"}}', 401),
+        );
+
+        final request = ChatRequest(
+          messages: [const Message(role: Role.user, content: 'Hello')],
+          model: 'gpt-4o',
+        );
+
+        expectLater(
+          provider.chat(request),
+          throwsA(isA<AuthError>()),
+        );
+      });
+
+      test('should handle rate limit errors', () async {
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response(
+            '{"error": {"message": "Rate limit exceeded"}}',
+            429,
+            headers: {'retry-after': '60'},
+          ),
+        );
+
+        final request = ChatRequest(
+          messages: [const Message(role: Role.user, content: 'Hello')],
+          model: 'gpt-4o',
+        );
+
+        expectLater(
+          provider.chat(request),
+          throwsA(isA<QuotaError>()),
+        );
+      });
+
+      test('should handle server errors', () async {
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response('{"error": {"message": "Internal server error"}}', 500),
+        );
+
+        final request = ChatRequest(
+          messages: [const Message(role: Role.user, content: 'Hello')],
+          model: 'gpt-4o',
+        );
+
+        expectLater(
+          provider.chat(request),
+          throwsA(isA<TransientError>()),
+        );
+      });
+
+      test('should handle system and user messages', () async {
+        final mockResponseBody = jsonEncode({
+          'id': 'chatcmpl-123',
+          'object': 'chat.completion',
+          'created': 1677652288,
+          'model': 'gpt-4o',
+          'choices': [
+            {
+              'index': 0,
+              'message': {
+                'role': 'assistant',
+                'content': 'I understand.',
+              },
+              'finish_reason': 'stop',
+            }
+          ],
+          'usage': {
+            'prompt_tokens': 20,
+            'completion_tokens': 5,
+            'total_tokens': 25,
+          },
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/chat/completions',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final request = ChatRequest(
+          messages: [
+            const Message(
+                role: Role.system, content: 'You are a helpful assistant.'),
+            const Message(role: Role.user, content: 'Hello!'),
+          ],
+          model: 'gpt-4o',
+        );
+
+        final response = await provider.chat(request);
+
+        expect(response.choices.first.message.content, equals('I understand.'));
+      });
+    });
+
+    group('ModelFetcher', () {
+      late OpenAIProvider provider;
+      late MockHttpClient mockClient;
+
+      setUp(() async {
+        mockClient = MockHttpClient();
+        provider = OpenAIProvider();
+        final config = ProviderConfig(
+          id: 'openai',
+          auth: ApiKeyAuth(apiKey: 'sk-test123'),
+          settings: {
+            'httpClient': mockClient,
+          },
+        );
+
+        await provider.init(config);
+      });
+
+      test('should fetch available models from API', () async {
+        final mockResponseBody = jsonEncode({
+          'data': [
+            {'id': 'gpt-4', 'object': 'model'},
+            {'id': 'gpt-3.5-turbo', 'object': 'model'},
+            {'id': 'text-embedding-3-small', 'object': 'model'},
+            {'id': 'dall-e-3', 'object': 'model'},
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/models',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final models = await provider.fetchAvailableModels();
+
+        expect(models, isNotEmpty);
+        expect(models, contains('gpt-4'));
+        expect(models, contains('gpt-3.5-turbo'));
+        expect(models, contains('text-embedding-3-small'));
+        expect(models, contains('dall-e-3'));
+      });
+
+      test('should return fallback models on API error', () async {
+        mockClient.setResponse(
+          'https://api.openai.com/v1/models',
+          http.Response('{"error": "Unauthorized"}', 401),
+        );
+
+        final models = await provider.fetchAvailableModels();
+
+        expect(models, isNotEmpty);
+        expect(models, contains('gpt-4o'));
+        expect(models, contains('gpt-3.5-turbo'));
+      });
+
+      test('should return fallback models on network error', () async {
+        // Don't set any response, which will cause a 404
+        final models = await provider.fetchAvailableModels();
+
+        expect(models, isNotEmpty);
+        expect(models, contains('gpt-4o'));
+      });
+
+      test('should filter out unsupported models', () async {
+        final mockResponseBody = jsonEncode({
+          'data': [
+            {'id': 'gpt-4', 'object': 'model'},
+            {'id': 'gpt-4:deprecated', 'object': 'model'}, // Should be filtered
+            {'id': 'internal-model', 'object': 'model'}, // Should be filtered
+            {'id': 'text-embedding-3-small', 'object': 'model'},
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/models',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final models = await provider.fetchAvailableModels();
+
+        expect(models, contains('gpt-4'));
+        expect(models, contains('text-embedding-3-small'));
+        expect(models, isNot(contains('gpt-4:deprecated')));
+        expect(models, isNot(contains('internal-model')));
+      });
+
+      test('should infer model type correctly', () {
+        expect(provider.inferModelType('gpt-4'), equals('text'));
+        expect(provider.inferModelType('gpt-3.5-turbo'), equals('text'));
+        expect(provider.inferModelType('text-embedding-3-small'),
+            equals('embedding'));
+        expect(provider.inferModelType('dall-e-3'), equals('image'));
+        expect(provider.inferModelType('tts-1'), equals('tts'));
+        expect(provider.inferModelType('whisper-1'), equals('stt'));
+        expect(provider.inferModelType('unknown-model'), equals('other'));
+      });
+
+      test('should refresh models and update capabilities', () async {
+        final mockResponseBody = jsonEncode({
+          'data': [
+            {'id': 'gpt-4', 'object': 'model'},
+            {'id': 'gpt-3.5-turbo', 'object': 'model'},
+          ],
+        });
+
+        mockClient.setResponse(
+          'https://api.openai.com/v1/models',
+          http.Response(mockResponseBody, 200),
+        );
+
+        final models = await provider.refreshModels();
+
+        expect(models, isNotEmpty);
+        expect(provider.capabilities.supportedModels, contains('gpt-4'));
+        expect(
+            provider.capabilities.supportedModels, contains('gpt-3.5-turbo'));
       });
     });
   });
