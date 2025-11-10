@@ -6,6 +6,7 @@ import '../models/requests/chat_request.dart';
 import '../models/requests/embedding_request.dart';
 import '../models/requests/image_request.dart';
 import '../models/responses/chat_response.dart';
+import '../models/responses/chat_stream_event.dart';
 import '../models/responses/embedding_response.dart';
 import '../models/responses/image_response.dart';
 import '../orchestrator/intent_detector.dart';
@@ -372,6 +373,161 @@ class UnifiedAI {
         error,
         provider,
         'chat',
+      );
+      rethrow;
+    }
+  }
+
+  /// Generates a streaming chat completion response.
+  ///
+  /// Similar to [chat], but returns responses incrementally as they are generated.
+  /// This enables real-time UI updates where users see text appear progressively
+  /// instead of waiting for the complete response.
+  ///
+  /// **Streaming Flow:**
+  /// The stream emits multiple [ChatStreamEvent] objects:
+  /// - Content events: `delta` contains text chunks, `done: false`
+  /// - Final event: `delta: null`, `done: true` (may include metadata like usage stats)
+  ///
+  /// **Parameters:**
+  /// - [provider]: Optional provider ID to use. If not specified, the router
+  ///   will automatically detect intent from the request and select an appropriate
+  ///   provider. The selected provider must support streaming (check [capabilities.supportsStreaming]).
+  /// - [request]: The chat request containing messages and generation parameters.
+  ///
+  /// **Returns:**
+  /// A [Stream] of [ChatStreamEvent] objects representing incremental updates.
+  ///
+  /// **Throws:**
+  /// - [ClientError] if explicit provider is specified but not found
+  /// - [CapabilityError] if no providers support the chat capability
+  /// - [CapabilityError] if the selected provider doesn't support streaming
+  /// - [AuthError] if authentication fails
+  /// - [QuotaError] if rate limits are exceeded
+  /// - [TransientError] for retryable errors
+  ///
+  /// **Example:**
+  /// ```dart
+  /// final ai = UnifiedAI.instance;
+  ///
+  /// // Automatic intent-based routing
+  /// final stream = ai.chatStream(
+  ///   request: ChatRequest(
+  ///     messages: [
+  ///       Message(role: Role.user, content: 'Tell me a story'),
+  ///     ],
+  ///   ),
+  /// );
+  ///
+  /// String accumulatedText = '';
+  /// await for (final event in stream) {
+  ///   if (event.delta != null) {
+  ///     accumulatedText += event.delta!;
+  ///     print(event.delta!);  // Print incrementally
+  ///   }
+  ///
+  ///   if (event.done) {
+  ///     print('\n\nStream completed!');
+  ///     if (event.metadata != null) {
+  ///       final usage = event.metadata!['usage'];
+  ///       print('Tokens used: ${usage['total_tokens']}');
+  ///     }
+  ///     break;
+  ///   }
+  /// }
+  ///
+  /// // Explicit provider selection
+  /// final stream2 = ai.chatStream(
+  ///   provider: 'openai',
+  ///   request: ChatRequest(
+  ///     messages: [
+  ///       Message(role: Role.user, content: 'Hello!'),
+  ///     ],
+  ///   ),
+  /// );
+  /// ```
+  Stream<ChatStreamEvent> chatStream({
+    String? provider,
+    required ChatRequest request,
+  }) async* {
+    // Generate unique request ID for this operation
+    final requestId = _generateRequestId();
+    final stopwatch = Stopwatch()..start();
+
+    // Emit request telemetry event
+    await _emitRequest(requestId, provider, request, 'chatStream');
+
+    try {
+      // Use router for provider selection (handles explicit provider or intent-based routing)
+      final selectedProvider = await _router.route(
+        provider ?? _config.defaultProvider,
+        request,
+      );
+
+      // Validate that the provider supports streaming
+      if (!selectedProvider.capabilities.supportsStreaming) {
+        throw CapabilityError(
+          message:
+              'Provider "${selectedProvider.id}" does not support streaming. '
+              'Use chat() for non-streaming responses.',
+          code: 'STREAMING_NOT_SUPPORTED',
+          provider: selectedProvider.id,
+        );
+      }
+
+      // Get the stream from the provider
+      final stream = selectedProvider.chatStream(request);
+
+      // Track if we've seen the final event
+      bool streamCompleted = false;
+      int? tokensUsed;
+
+      // Yield events from the provider stream
+      try {
+        await for (final event in stream) {
+          // Track metadata from final event
+          if (event.done) {
+            streamCompleted = true;
+            // Extract token usage from metadata if available
+            if (event.metadata != null) {
+              final usage = event.metadata!['usage'];
+              if (usage != null && usage is Map) {
+                tokensUsed = usage['total_tokens'] as int?;
+              }
+            }
+          }
+
+          yield event;
+        }
+      } catch (streamError) {
+        // Emit error telemetry event
+        await _emitError(
+          requestId,
+          streamError,
+          selectedProvider.id,
+          'chatStream',
+        );
+        rethrow;
+      }
+
+      // Emit response telemetry event if stream completed successfully
+      if (streamCompleted) {
+        await _emitResponse(
+          requestId,
+          stopwatch.elapsed,
+          tokensUsed,
+          false, // TODO: Add cache support in future step
+          selectedProvider.id,
+          'chatStream',
+        );
+      }
+    } catch (error) {
+      // Emit error telemetry event
+      await _emitError(
+        requestId,
+        error,
+        provider,
+        'chatStream',
       );
       rethrow;
     }
