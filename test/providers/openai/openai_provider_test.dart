@@ -10,15 +10,21 @@ import 'package:unified_ai_sdk/src/models/common/message.dart';
 import 'package:unified_ai_sdk/src/models/requests/chat_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
+import 'package:unified_ai_sdk/src/models/responses/chat_stream_event.dart';
 import 'package:unified_ai_sdk/src/providers/openai/openai_provider.dart';
 
 // Mock HTTP client for testing
 class MockHttpClient extends http.BaseClient {
   final Map<String, http.Response> _responses = {};
+  final Map<String, Stream<List<int>>> _streamResponses = {};
   final List<http.BaseRequest> _requests = [];
 
   void setResponse(String url, http.Response response) {
     _responses[url] = response;
+  }
+
+  void setStreamResponse(String url, Stream<List<int>> stream) {
+    _streamResponses[url] = stream;
   }
 
   List<http.BaseRequest> get requests => List.unmodifiable(_requests);
@@ -27,7 +33,20 @@ class MockHttpClient extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     _requests.add(request);
 
-    final response = _responses[request.url.toString()];
+    final url = request.url.toString();
+
+    // Check for streaming response first
+    if (_streamResponses.containsKey(url)) {
+      return http.StreamedResponse(
+        _streamResponses[url]!,
+        200,
+        headers: {'content-type': 'text/event-stream'},
+        request: request,
+      );
+    }
+
+    // Check for regular response
+    final response = _responses[url];
     if (response != null) {
       return http.StreamedResponse(
         Stream.value(utf8.encode(response.body)),
@@ -921,6 +940,135 @@ void main() {
         expect(provider.capabilities.supportedModels, contains('gpt-4'));
         expect(
             provider.capabilities.supportedModels, contains('gpt-3.5-turbo'));
+      });
+    });
+
+    group('chatStream', () {
+      late OpenAIProvider provider;
+      late MockHttpClient mockClient;
+
+      setUp(() async {
+        mockClient = MockHttpClient();
+        provider = OpenAIProvider();
+        await provider.init(ProviderConfig(
+          id: 'openai',
+          auth: ApiKeyAuth(apiKey: 'sk-test123'),
+          settings: {'httpClient': mockClient},
+        ));
+      });
+
+      test('should stream chat events with deltas', () async {
+        // Create SSE stream response
+        final sseStream = Stream<List<int>>.fromIterable([
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}\n\n'),
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":", "},"finish_reason":null}]}\n\n'),
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"world"},"finish_reason":null}]}\n\n'),
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":"stop"}]}\n\n'),
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n\n'),
+          utf8.encode('data: [DONE]\n\n'),
+        ]);
+
+        mockClient.setStreamResponse(
+          'https://api.openai.com/v1/chat/completions',
+          sseStream,
+        );
+
+        final request = ChatRequest(
+          model: 'gpt-4',
+          messages: [Message(role: Role.user, content: 'Hello!')],
+        );
+
+        final stream = provider.chatStream(request);
+        final events = <ChatStreamEvent>[];
+
+        await for (final event in stream) {
+          events.add(event);
+        }
+
+        expect(events.length, greaterThan(0));
+        expect(events.last.done, isTrue);
+        expect(events.last.delta, isNull);
+
+        // Check that deltas were received
+        final contentEvents = events.where((e) => e.delta != null).toList();
+        expect(contentEvents.length, greaterThan(0));
+
+        // Accumulate deltas
+        final accumulated = contentEvents.map((e) => e.delta!).join('');
+        expect(accumulated, contains('Hello'));
+        expect(accumulated, contains('world'));
+      });
+
+      test('should include metadata in final event', () async {
+        final sseStream = Stream<List<int>>.fromIterable([
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"Test"},"finish_reason":null}]}\n\n'),
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}}\n\n'),
+          utf8.encode('data: [DONE]\n\n'),
+        ]);
+
+        mockClient.setStreamResponse(
+          'https://api.openai.com/v1/chat/completions',
+          sseStream,
+        );
+
+        final request = ChatRequest(
+          model: 'gpt-4',
+          messages: [Message(role: Role.user, content: 'Test')],
+        );
+
+        final stream = provider.chatStream(request);
+        final events = <ChatStreamEvent>[];
+
+        await for (final event in stream) {
+          events.add(event);
+        }
+
+        final finalEvent = events.last;
+        expect(finalEvent.done, isTrue);
+        expect(finalEvent.metadata, isNotNull);
+        expect(finalEvent.metadata!['usage'], isNotNull);
+        expect(finalEvent.metadata!['usage']['total_tokens'], equals(6));
+      });
+
+      test('should handle empty deltas gracefully', () async {
+        final sseStream = Stream<List<int>>.fromIterable([
+          utf8.encode(
+              'data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":null}]}\n\n'),
+          utf8.encode('data: [DONE]\n\n'),
+        ]);
+
+        mockClient.setStreamResponse(
+          'https://api.openai.com/v1/chat/completions',
+          sseStream,
+        );
+
+        final request = ChatRequest(
+          model: 'gpt-4',
+          messages: [Message(role: Role.user, content: 'Test')],
+        );
+
+        final stream = provider.chatStream(request);
+        final events = <ChatStreamEvent>[];
+
+        await for (final event in stream) {
+          events.add(event);
+        }
+
+        expect(events.length, greaterThanOrEqualTo(1));
+        expect(events.last.done, isTrue);
+      });
+
+      test('should validate streaming capability', () {
+        final providerWithoutStreaming = OpenAIProvider();
+        // Note: OpenAIProvider always supports streaming, but we can test the validation
+        expect(providerWithoutStreaming.capabilities.supportsStreaming, isTrue);
       });
     });
   });

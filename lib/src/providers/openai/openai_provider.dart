@@ -14,6 +14,7 @@ import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
+import '../../models/responses/chat_stream_event.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
@@ -295,6 +296,159 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
     // Map OpenAI response to SDK format
     return _mapper.mapChatResponse(openAIResponse);
+  }
+
+  @override
+  Stream<ChatStreamEvent> chatStream(ChatRequest request) async* {
+    // Validate that streaming is supported
+    validateCapability('streaming');
+
+    // Map SDK request to OpenAI format
+    final openAIRequest = _mapper.mapChatRequest(
+      request,
+      defaultModel: _defaultModel,
+    );
+
+    // Create streaming request with stream: true
+    final requestJson = openAIRequest.toJson() as Map<String, dynamic>;
+    final streamRequestJson = <String, dynamic>{
+      ...requestJson,
+      'stream': true,
+    };
+
+    try {
+      // Make streaming HTTP POST request
+      final byteStream = _http.postStream(
+        '$_baseUrl/chat/completions',
+        body: streamRequestJson,
+      );
+
+      // Parse SSE (Server-Sent Events) format
+      String buffer = '';
+      Map<String, dynamic>? finalMetadata;
+
+      await for (final chunk in byteStream) {
+        // Convert bytes to string and append to buffer
+        buffer += utf8.decode(chunk, allowMalformed: true);
+
+        // Process complete lines (ending with \n)
+        final lines = buffer.split('\n');
+        // Keep the last incomplete line in buffer
+        buffer = lines.removeLast();
+
+        for (final line in lines) {
+          // Skip empty lines
+          if (line.trim().isEmpty) continue;
+
+          // SSE format: lines starting with "data: "
+          if (line.startsWith('data: ')) {
+            final data = line.substring(6).trim();
+
+            // Check for [DONE] marker
+            if (data == '[DONE]') {
+              // Yield final event with metadata if available
+              yield ChatStreamEvent(
+                delta: null,
+                done: true,
+                metadata: finalMetadata,
+              );
+              return;
+            }
+
+            // Parse JSON chunk
+            try {
+              final chunkJson = jsonDecode(data) as Map<String, dynamic>;
+
+              // Extract delta content from choices[0].delta.content
+              final choices = chunkJson['choices'] as List<dynamic>?;
+              if (choices != null && choices.isNotEmpty) {
+                final choice = choices[0] as Map<String, dynamic>;
+                final delta = choice['delta'] as Map<String, dynamic>?;
+                final content = delta?['content'] as String?;
+
+                // Extract usage information if present (usually in final chunk)
+                final usage = chunkJson['usage'] as Map<String, dynamic>?;
+                if (usage != null) {
+                  finalMetadata = {
+                    'usage': {
+                      'prompt_tokens': usage['prompt_tokens'],
+                      'completion_tokens': usage['completion_tokens'],
+                      'total_tokens': usage['total_tokens'],
+                    },
+                  };
+                }
+
+                // Extract finish reason if present
+                final finishReason = choice['finish_reason'] as String?;
+                if (finishReason != null) {
+                  finalMetadata ??= <String, dynamic>{};
+                  finalMetadata['finish_reason'] = finishReason;
+                }
+
+                // Extract model if present
+                final model = chunkJson['model'] as String?;
+                if (model != null) {
+                  finalMetadata ??= <String, dynamic>{};
+                  finalMetadata['model'] = model;
+                }
+
+                // Yield event with content delta
+                if (content != null) {
+                  yield ChatStreamEvent(
+                    delta: content,
+                    done: false,
+                  );
+                }
+              }
+            } on FormatException {
+              // Skip invalid JSON chunks (shouldn't happen with OpenAI, but be defensive)
+              continue;
+            }
+          }
+        }
+      }
+
+      // Handle case where stream ends without [DONE] marker
+      // (shouldn't happen with OpenAI, but be defensive)
+      if (buffer.isNotEmpty) {
+        // Try to process remaining buffer
+        if (buffer.startsWith('data: ')) {
+          final data = buffer.substring(6).trim();
+          if (data != '[DONE]' && data.isNotEmpty) {
+            try {
+              final chunkJson = jsonDecode(data) as Map<String, dynamic>;
+              final choices = chunkJson['choices'] as List<dynamic>?;
+              if (choices != null && choices.isNotEmpty) {
+                final choice = choices[0] as Map<String, dynamic>;
+                final delta = choice['delta'] as Map<String, dynamic>?;
+                final content = delta?['content'] as String?;
+                if (content != null) {
+                  yield ChatStreamEvent(
+                    delta: content,
+                    done: false,
+                  );
+                }
+              }
+            } on FormatException {
+              // Ignore invalid JSON
+            }
+          }
+        }
+      }
+
+      // Always yield final event
+      yield ChatStreamEvent(
+        delta: null,
+        done: true,
+        metadata: finalMetadata,
+      );
+    } catch (e) {
+      // Map HTTP/network errors to appropriate exception types
+      if (e is Exception) {
+        throw ErrorMapper.mapException(e, id);
+      }
+      rethrow;
+    }
   }
 
   @override

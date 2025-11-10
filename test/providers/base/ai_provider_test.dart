@@ -13,6 +13,7 @@ import 'package:unified_ai_sdk/src/models/requests/stt_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/tts_request.dart';
 import 'package:unified_ai_sdk/src/models/responses/audio_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/chat_stream_event.dart';
 import 'package:unified_ai_sdk/src/models/responses/embedding_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/image_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/transcription_response.dart';
@@ -70,11 +71,11 @@ class MockProvider extends AiProvider {
   }
 
   @override
-  Stream<ChatStreamEvent>? chatStream(ChatRequest request) {
+  Stream<ChatStreamEvent> chatStream(ChatRequest request) {
     if (!_capabilities.supportsStreaming) {
-      return null;
+      throw UnsupportedError('Streaming not supported by provider $_id');
     }
-    return Stream.value(ChatStreamEvent());
+    return Stream.value(const ChatStreamEvent(delta: 'test', done: false));
   }
 
   @override
@@ -113,6 +114,64 @@ class MockProvider extends AiProvider {
 
   bool get isInitialized => _initialized;
   bool get isDisposed => _disposed;
+}
+
+/// Minimal provider implementation that doesn't override chatStream
+/// Used to test the default behavior of chatStream
+class _DefaultStreamingProvider extends AiProvider {
+  final String _id;
+  final String _name;
+  final ProviderCapabilities _capabilities;
+
+  _DefaultStreamingProvider({
+    required String id,
+    required String name,
+    required ProviderCapabilities capabilities,
+  })  : _id = id,
+        _name = name,
+        _capabilities = capabilities;
+
+  @override
+  String get id => _id;
+
+  @override
+  String get name => _name;
+
+  @override
+  ProviderCapabilities get capabilities => _capabilities;
+
+  @override
+  Future<void> init(ProviderConfig config) async {
+    // No-op for testing
+  }
+
+  @override
+  Future<ChatResponse> chat(ChatRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  @override
+  Future<EmbeddingResponse> embed(EmbeddingRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  @override
+  Future<ImageResponse> generateImage(ImageRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  @override
+  Future<AudioResponse> tts(TtsRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  @override
+  Future<TranscriptionResponse> stt(SttRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  // Note: chatStream is NOT overridden, so it will use the default implementation
+  // that throws UnsupportedError
 }
 
 void main() {
@@ -291,17 +350,19 @@ void main() {
     });
 
     group('chatStream', () {
-      test('should return null when streaming not supported', () {
+      test('should throw UnsupportedError when streaming not supported', () {
         final provider = MockProvider(
           id: 'test',
           name: 'Test',
           capabilities: ProviderCapabilities(supportsStreaming: false),
         );
 
-        final stream = provider.chatStream(ChatRequest(
-          messages: [Message(role: Role.user, content: 'Test')],
-        ));
-        expect(stream, isNull);
+        expect(
+          () => provider.chatStream(ChatRequest(
+            messages: [Message(role: Role.user, content: 'Test')],
+          )),
+          throwsA(isA<UnsupportedError>()),
+        );
       });
 
       test('should return stream when streaming is supported', () {
@@ -318,6 +379,22 @@ void main() {
           messages: [Message(role: Role.user, content: 'Test')],
         ));
         expect(stream, isNotNull);
+      });
+
+      test('should throw UnsupportedError by default when not overridden', () {
+        // Create a minimal provider that doesn't override chatStream
+        final provider = _DefaultStreamingProvider(
+          id: 'test',
+          name: 'Test',
+          capabilities: ProviderCapabilities(),
+        );
+
+        expect(
+          () => provider.chatStream(ChatRequest(
+            messages: [Message(role: Role.user, content: 'Test')],
+          )),
+          throwsA(isA<UnsupportedError>()),
+        );
       });
     });
 

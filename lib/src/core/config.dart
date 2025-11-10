@@ -1,17 +1,8 @@
 import '../cache/cache_config.dart';
 import '../error/error_types.dart';
 import '../retry/retry_policy.dart';
+import '../telemetry/telemetry_handler.dart';
 import 'provider_config.dart';
-
-// Placeholder types - will be defined in later steps
-// These are included here to make UnifiedAIConfig complete
-// Once these types are created, they should be imported instead
-
-/// Placeholder for TelemetryHandler - will be replaced when Step 19.1 is completed
-/// Note: TelemetryHandler needs to be created in lib/src/telemetry/telemetry_handler.dart
-abstract class TelemetryHandler {
-  // This is a placeholder. Actual implementation will be in Step 19.1
-}
 
 /// Configuration for the Unified AI SDK.
 ///

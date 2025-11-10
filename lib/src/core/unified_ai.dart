@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import '../error/ai_exception.dart';
 import '../error/error_types.dart';
 import '../models/requests/chat_request.dart';
 import '../models/requests/embedding_request.dart';
@@ -14,6 +17,7 @@ import '../providers/cohere/cohere_provider.dart';
 import '../providers/google/google_provider.dart';
 import '../providers/openai/openai_provider.dart';
 import '../retry/retry_handler.dart';
+import '../telemetry/telemetry_handler.dart';
 import 'config.dart';
 import 'provider_config.dart';
 
@@ -73,6 +77,12 @@ class UnifiedAI {
   /// Router for selecting appropriate providers based on intent or explicit selection.
   final RequestRouter _router;
 
+  /// List of telemetry handlers for observability.
+  ///
+  /// These handlers receive telemetry events (requests, responses, errors)
+  /// for logging, metrics collection, and monitoring.
+  final List<TelemetryHandler> _telemetryHandlers;
+
   /// Private constructor for singleton pattern.
   ///
   /// Use [init] to create and initialize the instance.
@@ -81,10 +91,12 @@ class UnifiedAI {
     required ProviderRegistry registry,
     required RetryHandler retryHandler,
     required RequestRouter router,
+    required List<TelemetryHandler> telemetryHandlers,
   })  : _config = config,
         _registry = registry,
         _retryHandler = retryHandler,
-        _router = router;
+        _router = router,
+        _telemetryHandlers = telemetryHandlers;
 
   /// Gets the singleton instance of [UnifiedAI].
   ///
@@ -170,6 +182,7 @@ class UnifiedAI {
       registry: registry,
       retryHandler: retryHandler,
       router: router,
+      telemetryHandlers: config.telemetryHandlers,
     );
 
     return _instance!;
@@ -324,14 +337,44 @@ class UnifiedAI {
     String? provider,
     required ChatRequest request,
   }) async {
-    return _retryHandler.execute(() async {
-      // Use router for provider selection (handles explicit provider or intent-based routing)
-      final selectedProvider = await _router.route(
-        provider ?? _config.defaultProvider,
-        request,
+    // Generate unique request ID for this operation
+    final requestId = _generateRequestId();
+    final stopwatch = Stopwatch()..start();
+
+    // Emit request telemetry event
+    await _emitRequest(requestId, provider, request, 'chat');
+
+    try {
+      final response = await _retryHandler.execute(() async {
+        // Use router for provider selection (handles explicit provider or intent-based routing)
+        final selectedProvider = await _router.route(
+          provider ?? _config.defaultProvider,
+          request,
+        );
+        return await selectedProvider.chat(request);
+      });
+
+      // Emit response telemetry event
+      await _emitResponse(
+        requestId,
+        stopwatch.elapsed,
+        response.usage.totalTokens,
+        false, // TODO: Add cache support in future step
+        response.provider,
+        'chat',
       );
-      return await selectedProvider.chat(request);
-    });
+
+      return response;
+    } catch (error) {
+      // Emit error telemetry event
+      await _emitError(
+        requestId,
+        error,
+        provider,
+        'chat',
+      );
+      rethrow;
+    }
   }
 
   /// Generates embeddings for text inputs using an AI provider.
@@ -387,14 +430,44 @@ class UnifiedAI {
     String? provider,
     required EmbeddingRequest request,
   }) async {
-    return _retryHandler.execute(() async {
-      // Use router for provider selection (handles explicit provider or intent-based routing)
-      final selectedProvider = await _router.route(
-        provider ?? _config.defaultProvider,
-        request,
+    // Generate unique request ID for this operation
+    final requestId = _generateRequestId();
+    final stopwatch = Stopwatch()..start();
+
+    // Emit request telemetry event
+    await _emitRequest(requestId, provider, request, 'embed');
+
+    try {
+      final response = await _retryHandler.execute(() async {
+        // Use router for provider selection (handles explicit provider or intent-based routing)
+        final selectedProvider = await _router.route(
+          provider ?? _config.defaultProvider,
+          request,
+        );
+        return await selectedProvider.embed(request);
+      });
+
+      // Emit response telemetry event
+      await _emitResponse(
+        requestId,
+        stopwatch.elapsed,
+        response.usage?.totalTokens,
+        false, // TODO: Add cache support in future step
+        response.provider,
+        'embed',
       );
-      return await selectedProvider.embed(request);
-    });
+
+      return response;
+    } catch (error) {
+      // Emit error telemetry event
+      await _emitError(
+        requestId,
+        error,
+        provider,
+        'embed',
+      );
+      rethrow;
+    }
   }
 
   /// Generates images from text prompts using an AI provider.
@@ -456,14 +529,44 @@ class UnifiedAI {
     String? provider,
     required ImageRequest request,
   }) async {
-    return _retryHandler.execute(() async {
-      // Use router for provider selection (handles explicit provider or intent-based routing)
-      final selectedProvider = await _router.route(
-        provider ?? _config.defaultProvider,
-        request,
+    // Generate unique request ID for this operation
+    final requestId = _generateRequestId();
+    final stopwatch = Stopwatch()..start();
+
+    // Emit request telemetry event
+    await _emitRequest(requestId, provider, request, 'image');
+
+    try {
+      final response = await _retryHandler.execute(() async {
+        // Use router for provider selection (handles explicit provider or intent-based routing)
+        final selectedProvider = await _router.route(
+          provider ?? _config.defaultProvider,
+          request,
+        );
+        return await selectedProvider.generateImage(request);
+      });
+
+      // Emit response telemetry event
+      await _emitResponse(
+        requestId,
+        stopwatch.elapsed,
+        null, // Image generation doesn't use tokens
+        false, // TODO: Add cache support in future step
+        response.provider,
+        'image',
       );
-      return await selectedProvider.generateImage(request);
-    });
+
+      return response;
+    } catch (error) {
+      // Emit error telemetry event
+      await _emitError(
+        requestId,
+        error,
+        provider,
+        'image',
+      );
+      rethrow;
+    }
   }
 
   /// Gets the request router used for provider selection.
@@ -492,5 +595,194 @@ class UnifiedAI {
   Future<void> dispose() async {
     // TODO: Add cleanup logic (cache clearing, etc.) in later steps
     _instance = null;
+  }
+
+  /// Generates a unique request ID for tracking operations.
+  ///
+  /// The ID format is: `req_<timestamp>_<random>`
+  ///
+  /// **Returns:**
+  /// A unique string identifier for the request.
+  String _generateRequestId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = Random().nextInt(10000);
+    return 'req_${timestamp}_$random';
+  }
+
+  /// Emits a request telemetry event to all registered handlers.
+  ///
+  /// This method is called at the start of each SDK operation to notify
+  /// telemetry handlers that a request has been initiated.
+  ///
+  /// **Parameters:**
+  /// - [requestId]: Unique identifier for this request
+  /// - [provider]: Optional provider ID (may be null before routing)
+  /// - [request]: The request object (for metadata extraction)
+  /// - [operation]: The operation type ('chat', 'embed', 'image')
+  ///
+  /// **Note:** Errors in telemetry handlers are silently ignored to prevent
+  /// affecting SDK operations.
+  Future<void> _emitRequest(
+    String requestId,
+    String? provider,
+    dynamic request,
+    String operation,
+  ) async {
+    if (_telemetryHandlers.isEmpty) return;
+
+    // Determine provider - use explicit provider or get from router
+    final finalProvider = provider ?? _config.defaultProvider;
+
+    // If still null, we'll use 'unknown' - router will determine actual provider
+    final event = RequestTelemetry(
+      requestId: requestId,
+      provider: finalProvider ?? 'unknown',
+      operation: operation,
+      metadata: _extractRequestMetadata(request),
+    );
+
+    // Emit to all handlers (errors are ignored)
+    for (final handler in _telemetryHandlers) {
+      try {
+        await handler.onRequest(event);
+      } on Object {
+        // Silently ignore telemetry errors
+      }
+    }
+  }
+
+  /// Emits a response telemetry event to all registered handlers.
+  ///
+  /// This method is called after a successful SDK operation to notify
+  /// telemetry handlers that a response has been received.
+  ///
+  /// **Parameters:**
+  /// - [requestId]: Unique identifier matching the request
+  /// - [latency]: Time taken to complete the request
+  /// - [tokensUsed]: Number of tokens used (null if not applicable)
+  /// - [cached]: Whether response was served from cache
+  /// - [provider]: The provider that handled the request
+  /// - [operation]: The operation type ('chat', 'embed', 'image')
+  ///
+  /// **Note:** Errors in telemetry handlers are silently ignored to prevent
+  /// affecting SDK operations.
+  Future<void> _emitResponse(
+    String requestId,
+    Duration latency,
+    int? tokensUsed,
+    bool cached,
+    String provider,
+    String operation,
+  ) async {
+    if (_telemetryHandlers.isEmpty) return;
+
+    final event = ResponseTelemetry(
+      requestId: requestId,
+      latency: latency,
+      tokensUsed: tokensUsed,
+      cached: cached,
+    );
+
+    // Emit to all handlers (errors are ignored)
+    for (final handler in _telemetryHandlers) {
+      try {
+        await handler.onResponse(event);
+      } on Object {
+        // Silently ignore telemetry errors
+      }
+    }
+  }
+
+  /// Emits an error telemetry event to all registered handlers.
+  ///
+  /// This method is called when an SDK operation fails to notify
+  /// telemetry handlers that an error has occurred.
+  ///
+  /// **Parameters:**
+  /// - [requestId]: Unique identifier matching the request
+  /// - [error]: The exception that was thrown
+  /// - [provider]: Optional provider ID where the error occurred
+  /// - [operation]: The operation type ('chat', 'embed', 'image')
+  ///
+  /// **Note:** Errors in telemetry handlers are silently ignored to prevent
+  /// affecting SDK operations.
+  Future<void> _emitError(
+    String requestId,
+    Object error,
+    String? provider,
+    String operation,
+  ) async {
+    if (_telemetryHandlers.isEmpty) return;
+
+    // Try to extract provider from error if it's an AiException
+    final finalProvider = provider ??
+        (error is AiException ? error.provider : null) ??
+        _config.defaultProvider;
+
+    final event = ErrorTelemetry(
+      requestId: requestId,
+      error: error,
+      provider: finalProvider,
+      operation: operation,
+    );
+
+    // Emit to all handlers (errors are ignored)
+    for (final handler in _telemetryHandlers) {
+      try {
+        await handler.onError(event);
+      } on Object {
+        // Silently ignore telemetry errors
+      }
+    }
+  }
+
+  /// Extracts metadata from a request object for telemetry.
+  ///
+  /// Extracts relevant information like model name, parameters, etc.
+  /// that can be useful for telemetry and analytics.
+  ///
+  /// **Parameters:**
+  /// - [request]: The request object (ChatRequest, EmbeddingRequest, etc.)
+  ///
+  /// **Returns:**
+  /// A map of metadata, or null if extraction fails.
+  Map<String, dynamic>? _extractRequestMetadata(dynamic request) {
+    try {
+      final metadata = <String, dynamic>{};
+
+      // Extract model if available
+      if (request is ChatRequest && request.model != null) {
+        metadata['model'] = request.model;
+      } else if (request is EmbeddingRequest && request.model != null) {
+        metadata['model'] = request.model;
+      } else if (request is ImageRequest && request.model != null) {
+        metadata['model'] = request.model;
+      }
+
+      // Extract other common fields
+      if (request is ChatRequest) {
+        if (request.maxTokens != null) {
+          metadata['maxTokens'] = request.maxTokens;
+        }
+        if (request.temperature != null) {
+          metadata['temperature'] = request.temperature;
+        }
+        metadata['messageCount'] = request.messages.length;
+      } else if (request is EmbeddingRequest) {
+        metadata['inputCount'] = request.inputs.length;
+      } else if (request is ImageRequest) {
+        if (request.size != null) {
+          metadata['size'] = request.size.toString();
+        }
+        if (request.n != null) {
+          metadata['n'] = request.n;
+        }
+      }
+
+      return metadata.isEmpty ? null : metadata;
+    } on Object {
+      // Return null if extraction fails
+      return null;
+    }
   }
 }

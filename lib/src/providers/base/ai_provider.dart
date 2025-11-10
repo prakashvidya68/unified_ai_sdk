@@ -8,19 +8,10 @@ import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
+import '../../models/responses/chat_stream_event.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
-
-// Placeholder types - will be defined in later steps
-// These are included here to make the interface complete
-// Once these types are created, they should be imported instead
-
-/// Placeholder for ChatStreamEvent - will be replaced when streaming is implemented
-/// Note: ChatStreamEvent model needs to be created for streaming support
-class ChatStreamEvent {
-  // This is a placeholder. Actual implementation will be in streaming step
-}
 
 /// Base interface for all AI providers.
 ///
@@ -154,38 +145,76 @@ abstract class AiProvider {
   /// Similar to [chat], but returns responses incrementally as they are generated.
   /// Useful for real-time UI updates where users see text appear progressively.
   ///
+  /// **Streaming Flow:**
+  /// The stream emits multiple [ChatStreamEvent] objects:
+  /// - Content events: `delta` contains text chunks, `done: false`
+  /// - Final event: `delta: null`, `done: true` (may include metadata like usage stats)
+  ///
   /// **Parameters:**
   /// - [request]: The chat request containing messages and generation parameters
   ///
   /// **Returns:**
-  /// A [Stream] of [ChatStreamEvent] objects, or `null` if streaming is not supported.
-  /// Providers that don't support streaming should return `null` rather than throwing.
+  /// A [Stream] of [ChatStreamEvent] objects. The default implementation throws
+  /// [UnsupportedError] if streaming is not supported. Providers should override
+  /// this method to provide streaming support.
   ///
   /// **Throws:**
+  /// - [UnsupportedError] if streaming is not supported (default implementation)
   /// - [CapabilityError] if streaming is requested but not supported (check [capabilities.supportsStreaming])
   /// - Same exceptions as [chat] for authentication, quota, and other errors
   ///
   /// **Note:**
-  /// Check [capabilities.supportsStreaming] before calling this method. Providers
-  /// that don't support streaming can return `null` or throw [CapabilityError].
+  /// - Check [capabilities.supportsStreaming] before calling this method
+  /// - Providers that support streaming must override this method
+  /// - The default implementation throws [UnsupportedError] to make it clear
+  ///   that streaming must be explicitly implemented
   ///
   /// **Example:**
   /// ```dart
   /// if (provider.capabilities.supportsStreaming) {
   ///   final stream = provider.chatStream(request);
-  ///   if (stream != null) {
-  ///     await for (final event in stream) {
-  ///       if (event.delta != null) {
-  ///         print(event.delta);
+  ///   await for (final event in stream) {
+  ///     if (event.delta != null) {
+  ///       print(event.delta);  // Print incremental text
+  ///     }
+  ///     if (event.done) {
+  ///       print('Stream completed');
+  ///       if (event.metadata != null) {
+  ///         print('Usage: ${event.metadata!['usage']}');
   ///       }
+  ///       break;
   ///     }
   ///   }
   /// }
   /// ```
-  Stream<ChatStreamEvent>? chatStream(ChatRequest request) {
-    // Default implementation: return null if not supported
-    // Providers can override to provide streaming support
-    return null;
+  ///
+  /// **Provider Implementation:**
+  /// ```dart
+  /// @override
+  /// Stream<ChatStreamEvent> chatStream(ChatRequest request) async* {
+  ///   // Validate capability
+  ///   validateCapability('streaming');
+  ///
+  ///   // Make streaming request
+  ///   final stream = await _makeStreamingRequest(request);
+  ///
+  ///   // Parse and yield events
+  ///   await for (final chunk in stream) {
+  ///     final event = _parseStreamChunk(chunk);
+  ///     if (event != null) {
+  ///       yield event;
+  ///     }
+  ///   }
+  ///
+  ///   // Yield final event
+  ///   yield ChatStreamEvent(delta: null, done: true);
+  /// }
+  /// ```
+  Stream<ChatStreamEvent> chatStream(ChatRequest request) {
+    throw UnsupportedError(
+      'Streaming not supported by provider $id. '
+      'Override chatStream() to provide streaming support.',
+    );
   }
 
   /// Generates embeddings for the given text inputs.
