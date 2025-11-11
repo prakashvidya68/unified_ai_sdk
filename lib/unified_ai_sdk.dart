@@ -49,6 +49,7 @@
 /// - Anthropic (Claude)
 /// - Google (Gemini)
 /// - Cohere
+/// - xAI (Grok)
 ///
 /// **Documentation:**
 /// For detailed API documentation, see the generated docs or visit the

@@ -48,6 +48,7 @@ class RateLimiterFactory {
     'anthropic': 50,
     'google': 60,
     'cohere': 100,
+    'xai': 60,
   };
 
   /// Creates a rate limiter for the specified provider.
