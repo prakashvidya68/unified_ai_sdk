@@ -6,12 +6,16 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/chat_stream_event.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 
 /// Base interface for all AI providers.
 ///
@@ -319,6 +323,59 @@ abstract class AiProvider {
   /// ```
   Future<TranscriptionResponse> stt(SttRequest request);
 
+  /// Generates a video from a text prompt.
+  ///
+  /// Creates a video based on the provided text description using video
+  /// generation models like Sora, Veo, or Grok Imagine.
+  ///
+  /// **Parameters:**
+  /// - [request]: The video generation request containing prompt and parameters
+  ///
+  /// **Returns:**
+  /// A [VideoResponse] containing the generated video assets
+  ///
+  /// **Throws:**
+  /// - [CapabilityError] if provider doesn't support video generation (check [capabilities.supportsVideoGeneration])
+  /// - Same exceptions as [chat] for authentication, quota, and other errors
+  ///
+  /// **Example:**
+  /// ```dart
+  /// final request = VideoRequest(
+  ///   prompt: 'A beautiful sunset over the ocean',
+  ///   duration: 10,
+  ///   aspectRatio: '16:9',
+  /// );
+  /// final response = await provider.generateVideo(request);
+  /// print('Video URL: ${response.assets.first.url}');
+  /// ```
+  Future<VideoResponse> generateVideo(VideoRequest request);
+
+  /// Analyzes a video to extract information.
+  ///
+  /// Analyzes an existing video to extract information such as objects,
+  /// scenes, actions, text, or other insights.
+  ///
+  /// **Parameters:**
+  /// - [request]: The video analysis request containing video URL or data
+  ///
+  /// **Returns:**
+  /// A [VideoAnalysisResponse] containing detected objects, scenes, actions, etc.
+  ///
+  /// **Throws:**
+  /// - [CapabilityError] if provider doesn't support video analysis (check [capabilities.supportsVideoAnalysis])
+  /// - Same exceptions as [chat] for authentication, quota, and other errors
+  ///
+  /// **Example:**
+  /// ```dart
+  /// final request = VideoAnalysisRequest(
+  ///   videoUrl: 'https://example.com/video.mp4',
+  ///   features: ['objects', 'scenes'],
+  /// );
+  /// final response = await provider.analyzeVideo(request);
+  /// print('Detected objects: ${response.objects.length}');
+  /// ```
+  Future<VideoAnalysisResponse> analyzeVideo(VideoAnalysisRequest request);
+
   /// Performs a health check on the provider.
   ///
   /// Optional method to verify that the provider is accessible and functioning.
@@ -431,6 +488,25 @@ abstract class AiProvider {
           throw CapabilityError(
             message: 'Provider $id does not support speech-to-text',
             code: 'STT_NOT_SUPPORTED',
+            provider: id,
+          );
+        }
+        break;
+      case 'video':
+      case 'videoGeneration':
+        if (!capabilities.supportsVideoGeneration) {
+          throw CapabilityError(
+            message: 'Provider $id does not support video generation',
+            code: 'VIDEO_GENERATION_NOT_SUPPORTED',
+            provider: id,
+          );
+        }
+        break;
+      case 'videoAnalysis':
+        if (!capabilities.supportsVideoAnalysis) {
+          throw CapabilityError(
+            message: 'Provider $id does not support video analysis',
+            code: 'VIDEO_ANALYSIS_NOT_SUPPORTED',
             provider: id,
           );
         }

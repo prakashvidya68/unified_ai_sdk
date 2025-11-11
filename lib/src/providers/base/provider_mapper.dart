@@ -33,11 +33,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 
 /// Abstract interface for converting between unified SDK models and provider-specific formats.
 ///
@@ -184,4 +188,48 @@ abstract class ProviderMapper {
   /// **Returns:**
   /// A unified [TranscriptionResponse] that can be used by SDK users
   TranscriptionResponse mapSttResponse(dynamic response, SttRequest request);
+
+  /// Converts a unified [VideoRequest] to a provider-specific request format.
+  ///
+  /// **Parameters:**
+  /// - [request]: The unified SDK video generation request
+  /// - [defaultModel]: Optional default model to use if request.model is null
+  ///
+  /// **Returns:**
+  /// A provider-specific request object ready to be sent to the provider's API
+  ///
+  /// **Throws:**
+  /// - [ClientError] if the request is invalid or missing required fields
+  dynamic mapVideoRequest(VideoRequest request, {String? defaultModel});
+
+  /// Converts a provider-specific video generation response to unified [VideoResponse].
+  ///
+  /// **Parameters:**
+  /// - [response]: The provider-specific response object (from API)
+  ///
+  /// **Returns:**
+  /// A unified [VideoResponse] that can be used by SDK users
+  VideoResponse mapVideoResponse(dynamic response);
+
+  /// Converts a unified [VideoAnalysisRequest] to a provider-specific request format.
+  ///
+  /// **Parameters:**
+  /// - [request]: The unified SDK video analysis request
+  /// - [defaultModel]: Optional default model to use if request.model is null
+  ///
+  /// **Returns:**
+  /// A provider-specific request object ready to be sent to the provider's API
+  ///
+  /// **Throws:**
+  /// - [ClientError] if the request is invalid or missing required fields
+  dynamic mapVideoAnalysisRequest(VideoAnalysisRequest request, {String? defaultModel});
+
+  /// Converts a provider-specific video analysis response to unified [VideoAnalysisResponse].
+  ///
+  /// **Parameters:**
+  /// - [response]: The provider-specific response object (from API)
+  ///
+  /// **Returns:**
+  /// A unified [VideoAnalysisResponse] that can be used by SDK users
+  VideoAnalysisResponse mapVideoAnalysisResponse(dynamic response);
 }

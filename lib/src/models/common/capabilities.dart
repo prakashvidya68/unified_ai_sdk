@@ -47,6 +47,18 @@ class ProviderCapabilities {
   /// Providers that support STT can transcribe audio into text.
   final bool supportsSTT;
 
+  /// Whether the provider supports video generation.
+  ///
+  /// Providers that support video generation can create videos from text
+  /// prompts using models like Sora, Veo, or Grok Imagine.
+  final bool supportsVideoGeneration;
+
+  /// Whether the provider supports video analysis.
+  ///
+  /// Providers that support video analysis can analyze existing videos to
+  /// extract information such as objects, scenes, actions, text, or other insights.
+  final bool supportsVideoAnalysis;
+
   /// Whether the provider supports streaming responses.
   ///
   /// Providers that support streaming can return responses incrementally
@@ -129,6 +141,8 @@ class ProviderCapabilities {
     this.supportsImageGeneration = false,
     this.supportsTTS = false,
     this.supportsSTT = false,
+    this.supportsVideoGeneration = false,
+    this.supportsVideoAnalysis = false,
     this.supportsStreaming = false,
     List<String>? fallbackModels,
     this.dynamicModels = false,
@@ -205,6 +219,12 @@ class ProviderCapabilities {
       supportsSTT: json['supportsSTT'] as bool? ??
           json['supports_stt'] as bool? ??
           false,
+      supportsVideoGeneration: json['supportsVideoGeneration'] as bool? ??
+          json['supports_video_generation'] as bool? ??
+          false,
+      supportsVideoAnalysis: json['supportsVideoAnalysis'] as bool? ??
+          json['supports_video_analysis'] as bool? ??
+          false,
       supportsStreaming: json['supportsStreaming'] as bool? ??
           json['supports_streaming'] as bool? ??
           false,
@@ -238,6 +258,8 @@ class ProviderCapabilities {
       'supportsImageGeneration': supportsImageGeneration,
       'supportsTTS': supportsTTS,
       'supportsSTT': supportsSTT,
+      'supportsVideoGeneration': supportsVideoGeneration,
+      'supportsVideoAnalysis': supportsVideoAnalysis,
       'supportsStreaming': supportsStreaming,
       'supportedModels':
           supportedModels, // Current models (dynamic or fallback)
@@ -264,6 +286,8 @@ class ProviderCapabilities {
     bool? supportsImageGeneration,
     bool? supportsTTS,
     bool? supportsSTT,
+    bool? supportsVideoGeneration,
+    bool? supportsVideoAnalysis,
     bool? supportsStreaming,
     List<String>? fallbackModels,
     bool? dynamicModels,
@@ -275,6 +299,10 @@ class ProviderCapabilities {
           supportsImageGeneration ?? this.supportsImageGeneration,
       supportsTTS: supportsTTS ?? this.supportsTTS,
       supportsSTT: supportsSTT ?? this.supportsSTT,
+      supportsVideoGeneration:
+          supportsVideoGeneration ?? this.supportsVideoGeneration,
+      supportsVideoAnalysis:
+          supportsVideoAnalysis ?? this.supportsVideoAnalysis,
       supportsStreaming: supportsStreaming ?? this.supportsStreaming,
       fallbackModels: fallbackModels ?? this.fallbackModels,
       dynamicModels: dynamicModels ?? this.dynamicModels,
@@ -290,6 +318,8 @@ class ProviderCapabilities {
         other.supportsImageGeneration == supportsImageGeneration &&
         other.supportsTTS == supportsTTS &&
         other.supportsSTT == supportsSTT &&
+        other.supportsVideoGeneration == supportsVideoGeneration &&
+        other.supportsVideoAnalysis == supportsVideoAnalysis &&
         other.supportsStreaming == supportsStreaming &&
         _listEquals(other.supportedModels, supportedModels) &&
         _listEquals(other.fallbackModels, fallbackModels) &&
@@ -304,6 +334,8 @@ class ProviderCapabilities {
       supportsImageGeneration,
       supportsTTS,
       supportsSTT,
+      supportsVideoGeneration,
+      supportsVideoAnalysis,
       supportsStreaming,
       Object.hashAll(supportedModels),
       Object.hashAll(fallbackModels),
@@ -319,6 +351,8 @@ class ProviderCapabilities {
     if (supportsImageGeneration) capabilities.add('Image');
     if (supportsTTS) capabilities.add('TTS');
     if (supportsSTT) capabilities.add('STT');
+    if (supportsVideoGeneration) capabilities.add('Video Gen');
+    if (supportsVideoAnalysis) capabilities.add('Video Analysis');
     if (supportsStreaming) capabilities.add('Streaming');
 
     final modelsInfo = supportedModels.isEmpty
