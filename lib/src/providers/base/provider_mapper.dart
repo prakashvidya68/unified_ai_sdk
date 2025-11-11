@@ -26,12 +26,18 @@
 ///   }
 /// }
 /// ```
+import 'dart:typed_data';
+
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
+import '../../models/requests/stt_request.dart';
+import '../../models/requests/tts_request.dart';
+import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
+import '../../models/responses/transcription_response.dart';
 
 /// Abstract interface for converting between unified SDK models and provider-specific formats.
 ///
@@ -130,4 +136,52 @@ abstract class ProviderMapper {
   /// **Returns:**
   /// A unified [ImageResponse] that can be used by SDK users
   ImageResponse mapImageResponse(dynamic response);
+
+  /// Converts a unified [TtsRequest] to a provider-specific request format.
+  ///
+  /// **Parameters:**
+  /// - [request]: The unified SDK TTS request
+  /// - [defaultModel]: Optional default model to use if request.model is null
+  ///
+  /// **Returns:**
+  /// A provider-specific request object ready to be sent to the provider's API
+  ///
+  /// **Throws:**
+  /// - [ClientError] if the request is invalid or missing required fields
+  dynamic mapTtsRequest(TtsRequest request, {String? defaultModel});
+
+  /// Converts a provider-specific TTS response to unified [AudioResponse].
+  ///
+  /// **Parameters:**
+  /// - [response]: The HTTP response containing audio bytes
+  /// - [audioBytes]: The audio data as bytes
+  /// - [request]: The original TTS request (for metadata)
+  ///
+  /// **Returns:**
+  /// A unified [AudioResponse] that can be used by SDK users
+  AudioResponse mapTtsResponse(
+      dynamic response, Uint8List audioBytes, TtsRequest request);
+
+  /// Converts a unified [SttRequest] to a provider-specific request format.
+  ///
+  /// **Parameters:**
+  /// - [request]: The unified SDK STT request
+  /// - [defaultModel]: Optional default model to use if request.model is null
+  ///
+  /// **Returns:**
+  /// A provider-specific request object ready to be sent to the provider's API
+  ///
+  /// **Throws:**
+  /// - [ClientError] if the request is invalid or missing required fields
+  dynamic mapSttRequest(SttRequest request, {String? defaultModel});
+
+  /// Converts a provider-specific STT response to unified [TranscriptionResponse].
+  ///
+  /// **Parameters:**
+  /// - [response]: The provider-specific response object (from API)
+  /// - [request]: The original STT request (for metadata)
+  ///
+  /// **Returns:**
+  /// A unified [TranscriptionResponse] that can be used by SDK users
+  TranscriptionResponse mapSttResponse(dynamic response, SttRequest request);
 }

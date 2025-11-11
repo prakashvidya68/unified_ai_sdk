@@ -64,6 +64,9 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
   /// HTTP client wrapper for making API requests.
   late final HttpClientWrapper _http;
 
+  /// Underlying HTTP client for multipart requests.
+  late final http.Client _httpClient;
+
   /// Base URL for API requests (can be overridden in settings).
   late final String _baseUrl;
 
@@ -164,12 +167,13 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     // Initialize HTTP client wrapper with authentication headers
     // Allow injecting custom client for testing via settings
     final customClient = config.settings['httpClient'] as http.Client?;
+    _httpClient = customClient ?? http.Client();
 
     // Create rate limiter for this provider
     final rateLimiter = RateLimiterFactory.create(id, config.settings);
 
     _http = HttpClientWrapper(
-      client: customClient ?? http.Client(),
+      client: _httpClient,
       defaultHeaders: {
         ...authHeaders,
         'Content-Type': 'application/json',
@@ -527,14 +531,96 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
   @override
   Future<AudioResponse> tts(TtsRequest request) async {
-    // Will be implemented later
-    throw UnimplementedError('tts() is not yet implemented');
+    // Validate that TTS is supported
+    validateCapability('tts');
+
+    // Map SDK request to OpenAI format
+    final openaiRequest = _mapper.mapTtsRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as OpenAITtsRequest;
+
+    // Make HTTP POST request to audio/speech endpoint
+    final response = await _http.post(
+      '$_baseUrl/audio/speech',
+      body: jsonEncode(openaiRequest.toJson()),
+      headers: {
+        'Accept': 'audio/*', // Accept any audio format
+      },
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Get audio bytes from response
+    final audioBytes = response.bodyBytes;
+
+    // Map OpenAI response to SDK format
+    return _mapper.mapTtsResponse(response, audioBytes, request);
   }
 
   @override
   Future<TranscriptionResponse> stt(SttRequest request) async {
-    // Will be implemented later
-    throw UnimplementedError('stt() is not yet implemented');
+    // Validate that STT is supported
+    validateCapability('stt');
+
+    // Map SDK request to OpenAI format
+    final openaiRequest = _mapper.mapSttRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as OpenAISttRequest;
+
+    // OpenAI STT requires multipart/form-data
+    // We need to use the underlying http client directly for multipart
+    final multipartRequest = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_baseUrl/audio/transcriptions'),
+    );
+
+    // Add authentication headers
+    final authHeaders = _http.defaultHeaders;
+    multipartRequest.headers.addAll(authHeaders);
+
+    // Add form fields
+    final formFields = openaiRequest.toFormFields();
+    multipartRequest.fields.addAll(
+      formFields.map((key, value) => MapEntry(key, value.toString())),
+    );
+
+    // Add audio file
+    multipartRequest.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        openaiRequest.audio,
+        filename: 'audio.mp3', // Default filename, could be improved
+      ),
+    );
+
+    // Send the request using the underlying client
+    final streamedResponse = await _httpClient.send(multipartRequest);
+    final response = await http.Response.fromStream(streamedResponse);
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response based on response_format
+    final responseFormat = openaiRequest.responseFormat ?? 'json';
+    dynamic parsedResponse;
+
+    if (responseFormat == 'json' || responseFormat == 'verbose_json') {
+      // JSON response
+      parsedResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      // Plain text response (text, srt, vtt)
+      parsedResponse = response.body;
+    }
+
+    // Map OpenAI response to SDK format
+    return _mapper.mapSttResponse(parsedResponse, request);
   }
 
   /// Gets the default model for this provider.

@@ -38,15 +38,21 @@
 /// ```
 library;
 
+import 'dart:typed_data';
+
 import '../../error/error_types.dart';
 import '../../models/common/message.dart';
 import '../../models/common/usage.dart';
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
+import '../../models/requests/stt_request.dart';
+import '../../models/requests/tts_request.dart';
+import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
+import '../../models/responses/transcription_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'anthropic_models.dart';
@@ -331,5 +337,48 @@ class AnthropicMapper implements ProviderMapper {
       default:
         return stopReason;
     }
+  }
+
+  @override
+  dynamic mapTtsRequest(TtsRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Anthropic does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'anthropic',
+    );
+  }
+
+  @override
+  AudioResponse mapTtsResponse(
+    dynamic response,
+    Uint8List audioBytes,
+    TtsRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'Anthropic does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'anthropic',
+    );
+  }
+
+  @override
+  dynamic mapSttRequest(SttRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Anthropic does not support speech-to-text',
+      code: 'STT_NOT_SUPPORTED',
+      provider: 'anthropic',
+    );
+  }
+
+  @override
+  TranscriptionResponse mapSttResponse(
+    dynamic response,
+    SttRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'Anthropic does not support speech-to-text',
+      code: 'STT_NOT_SUPPORTED',
+      provider: 'anthropic',
+    );
   }
 }

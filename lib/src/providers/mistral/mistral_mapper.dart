@@ -5,6 +5,7 @@
 /// [SttRequest], [TranscriptionResponse]) and Mistral AI-specific models.
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../error/error_types.dart';
 import '../../models/common/message.dart';
@@ -13,6 +14,8 @@ import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
+import '../../models/requests/tts_request.dart';
+import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
@@ -319,7 +322,11 @@ class MistralMapper implements ProviderMapper {
   }
 
   /// Maps Mistral STT response to SDK [TranscriptionResponse].
-  TranscriptionResponse mapSttResponse(dynamic response, {String? model}) {
+  @override
+  TranscriptionResponse mapSttResponse(
+    dynamic response,
+    SttRequest request,
+  ) {
     if (response is! MistralSttResponse) {
       throw ArgumentError(
           'Expected MistralSttResponse, got ${response.runtimeType}');
@@ -328,7 +335,29 @@ class MistralMapper implements ProviderMapper {
     return TranscriptionResponse(
       text: response.text,
       language: response.language,
-      model: model ?? 'voxtral-mini-transcribe',
+      model: request.model ?? 'voxtral-mini-transcribe',
+      provider: 'mistral',
+    );
+  }
+
+  @override
+  dynamic mapTtsRequest(TtsRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Mistral AI does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'mistral',
+    );
+  }
+
+  @override
+  AudioResponse mapTtsResponse(
+    dynamic response,
+    Uint8List audioBytes,
+    TtsRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'Mistral AI does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
       provider: 'mistral',
     );
   }

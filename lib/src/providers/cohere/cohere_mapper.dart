@@ -32,14 +32,20 @@
 /// ```
 library;
 
+import 'dart:typed_data';
+
 import '../../error/error_types.dart';
 import '../../models/common/usage.dart';
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
+import '../../models/requests/stt_request.dart';
+import '../../models/requests/tts_request.dart';
+import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
+import '../../models/responses/transcription_response.dart';
 import '../base/provider_mapper.dart';
 import 'cohere_models.dart';
 
@@ -186,6 +192,49 @@ class CohereMapper implements ProviderMapper {
       model: modelName,
       provider: 'cohere',
       usage: usage,
+    );
+  }
+
+  @override
+  dynamic mapTtsRequest(TtsRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Cohere does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'cohere',
+    );
+  }
+
+  @override
+  AudioResponse mapTtsResponse(
+    dynamic response,
+    Uint8List audioBytes,
+    TtsRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'Cohere does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'cohere',
+    );
+  }
+
+  @override
+  dynamic mapSttRequest(SttRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Cohere does not support speech-to-text',
+      code: 'STT_NOT_SUPPORTED',
+      provider: 'cohere',
+    );
+  }
+
+  @override
+  TranscriptionResponse mapSttResponse(
+    dynamic response,
+    SttRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'Cohere does not support speech-to-text',
+      code: 'STT_NOT_SUPPORTED',
+      provider: 'cohere',
     );
   }
 }

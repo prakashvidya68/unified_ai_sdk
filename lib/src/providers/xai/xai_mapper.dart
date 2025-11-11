@@ -4,15 +4,21 @@
 /// SDK models ([ChatRequest], [ChatResponse], [ImageRequest], [ImageResponse])
 /// and xAI-specific models ([XAIChatRequest], [XAIChatResponse], etc.).
 
+import 'dart:typed_data';
+
 import '../../error/error_types.dart';
 import '../../models/common/message.dart';
 import '../../models/common/usage.dart';
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
+import '../../models/requests/stt_request.dart';
+import '../../models/requests/tts_request.dart';
+import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
+import '../../models/responses/transcription_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'xai_models.dart';
@@ -44,7 +50,8 @@ class XAIMapper implements ProviderMapper {
   }
 
   @override
-  dynamic mapEmbeddingRequest(EmbeddingRequest request, {String? defaultModel}) {
+  dynamic mapEmbeddingRequest(EmbeddingRequest request,
+      {String? defaultModel}) {
     throw CapabilityError(
       message: 'xAI does not support embeddings',
       code: 'EMBEDDING_NOT_SUPPORTED',
@@ -62,7 +69,8 @@ class XAIMapper implements ProviderMapper {
   }
 
   @override
-  XAIImageRequest mapImageRequest(ImageRequest request, {String? defaultModel}) {
+  XAIImageRequest mapImageRequest(ImageRequest request,
+      {String? defaultModel}) {
     return _mapImageRequestImpl(request, defaultModel: defaultModel);
   }
 
@@ -98,8 +106,7 @@ class XAIMapper implements ProviderMapper {
     }).toList();
 
     // Extract xAI-specific options from providerOptions
-    final xaiOptions =
-        request.providerOptions?['xai'] ?? <String, dynamic>{};
+    final xaiOptions = request.providerOptions?['xai'] ?? <String, dynamic>{};
 
     // Determine model - use request.model, then defaultModel, or throw error
     final model = request.model ?? defaultModel;
@@ -221,7 +228,6 @@ class XAIMapper implements ProviderMapper {
     }
   }
 
-
   /// Maps SDK [ImageRequest] to xAI image generation request format.
   XAIImageRequest _mapImageRequestImpl(
     ImageRequest request, {
@@ -237,8 +243,7 @@ class XAIMapper implements ProviderMapper {
     }
 
     // Extract xAI-specific options
-    final xaiOptions =
-        request.providerOptions?['xai'] ?? <String, dynamic>{};
+    final xaiOptions = request.providerOptions?['xai'] ?? <String, dynamic>{};
 
     return XAIImageRequest(
       prompt: request.prompt,
@@ -265,7 +270,8 @@ class XAIMapper implements ProviderMapper {
 
     // Extract model from response (if available) or use default
     // xAI may not return the model in the response, so we'll use a default
-    final model = 'flux-pro'; // Default, could be enhanced to track from request
+    final model =
+        'flux-pro'; // Default, could be enhanced to track from request
 
     // Build metadata from xAI-specific fields
     final metadata = <String, dynamic>{
@@ -279,5 +285,47 @@ class XAIMapper implements ProviderMapper {
       metadata: metadata,
     );
   }
-}
 
+  @override
+  dynamic mapTtsRequest(TtsRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'xAI does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'xai',
+    );
+  }
+
+  @override
+  AudioResponse mapTtsResponse(
+    dynamic response,
+    Uint8List audioBytes,
+    TtsRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'xAI does not support text-to-speech',
+      code: 'TTS_NOT_SUPPORTED',
+      provider: 'xai',
+    );
+  }
+
+  @override
+  dynamic mapSttRequest(SttRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'xAI does not support speech-to-text',
+      code: 'STT_NOT_SUPPORTED',
+      provider: 'xai',
+    );
+  }
+
+  @override
+  TranscriptionResponse mapSttResponse(
+    dynamic response,
+    SttRequest request,
+  ) {
+    throw CapabilityError(
+      message: 'xAI does not support speech-to-text',
+      code: 'STT_NOT_SUPPORTED',
+      provider: 'xai',
+    );
+  }
+}

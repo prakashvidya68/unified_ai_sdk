@@ -25,15 +25,23 @@
 /// final chatResponse = mapper.mapChatResponse(openaiResponse);
 /// ```
 
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
+
 import '../../error/error_types.dart';
 import '../../models/common/message.dart';
 import '../../models/common/usage.dart';
 import '../../models/requests/chat_request.dart';
 import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
+import '../../models/requests/stt_request.dart';
+import '../../models/requests/tts_request.dart';
+import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
+import '../../models/responses/transcription_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'openai_models.dart';
@@ -425,6 +433,136 @@ class OpenAIMapper implements ProviderMapper {
       model: model,
       provider: 'openai',
       metadata: metadata,
+    );
+  }
+
+  @override
+  OpenAITtsRequest mapTtsRequest(TtsRequest request, {String? defaultModel}) {
+    // Determine model
+    final model = request.model ?? defaultModel ?? 'tts-1';
+
+    // Extract OpenAI-specific options
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+
+    // Determine voice - use request.voice or default to 'alloy'
+    final voice = request.voice ?? openaiOptions['voice'] as String? ?? 'alloy';
+
+    // Determine response format - default to 'mp3'
+    final responseFormat = openaiOptions['response_format'] as String? ??
+        openaiOptions['responseFormat'] as String? ??
+        'mp3';
+
+    // Determine speed - use request.speed or default to 1.0
+    final speed = request.speed ?? 1.0;
+
+    return OpenAITtsRequest(
+      model: model,
+      input: request.text,
+      voice: voice,
+      responseFormat: responseFormat,
+      speed: speed,
+    );
+  }
+
+  @override
+  AudioResponse mapTtsResponse(
+    dynamic response,
+    Uint8List audioBytes,
+    TtsRequest request,
+  ) {
+    // Extract format from response headers or request
+    final format = _extractAudioFormat(response, request);
+
+    // Extract model from request
+    final model = request.model ?? 'tts-1';
+
+    return AudioResponse(
+      bytes: audioBytes,
+      format: format,
+      model: model,
+      provider: 'openai',
+    );
+  }
+
+  /// Extracts audio format from response headers or request.
+  String _extractAudioFormat(dynamic response, TtsRequest request) {
+    // Try to get format from response headers
+    if (response is http.Response) {
+      final contentType = response.headers['content-type'] ?? '';
+      if (contentType.contains('mp3')) return 'mp3';
+      if (contentType.contains('opus')) return 'opus';
+      if (contentType.contains('aac')) return 'aac';
+      if (contentType.contains('flac')) return 'flac';
+      if (contentType.contains('wav')) return 'wav';
+    }
+
+    // Fall back to request format or default
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+    return openaiOptions['response_format'] as String? ??
+        openaiOptions['responseFormat'] as String? ??
+        'mp3';
+  }
+
+  @override
+  OpenAISttRequest mapSttRequest(SttRequest request, {String? defaultModel}) {
+    // Determine model
+    final model = request.model ?? defaultModel ?? 'whisper-1';
+
+    // Extract OpenAI-specific options
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+
+    // Determine response format
+    final responseFormat = openaiOptions['response_format'] as String? ??
+        openaiOptions['responseFormat'] as String? ??
+        'json';
+
+    // Determine temperature
+    final temperature = openaiOptions['temperature'] as double?;
+
+    return OpenAISttRequest(
+      model: model,
+      audio: request.audio,
+      language: request.language,
+      prompt: request.prompt,
+      responseFormat: responseFormat,
+      temperature: temperature,
+    );
+  }
+
+  @override
+  TranscriptionResponse mapSttResponse(
+    dynamic response,
+    SttRequest request,
+  ) {
+    // OpenAI STT response can be JSON or plain text depending on response_format
+    String text;
+    String? language;
+
+    if (response is String) {
+      // Plain text response
+      text = response;
+    } else if (response is Map<String, dynamic>) {
+      // JSON response (verbose_json format)
+      text = response['text'] as String? ?? '';
+      language = response['language'] as String?;
+    } else {
+      throw ClientError(
+        message: 'Unexpected STT response format: ${response.runtimeType}',
+        code: 'INVALID_RESPONSE_FORMAT',
+      );
+    }
+
+    // Extract model from request
+    final model = request.model ?? 'whisper-1';
+
+    return TranscriptionResponse(
+      text: text,
+      language: language,
+      model: model,
+      provider: 'openai',
     );
   }
 }

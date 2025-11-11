@@ -440,7 +440,7 @@ class MistralProvider extends AiProvider {
     // Map Mistral response to SDK format
     return mistralMapper.mapSttResponse(
       mistralResponse,
-      model: mistralRequest.model ?? _defaultModel ?? 'voxtral-mini-transcribe',
+      request,
     );
   }
 

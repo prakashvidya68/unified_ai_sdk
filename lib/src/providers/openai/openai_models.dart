@@ -9,6 +9,8 @@
 /// instead, which will be automatically converted to/from these OpenAI-specific
 /// models by [OpenAIMapper].
 
+import 'dart:typed_data';
+
 import '../../error/error_types.dart';
 
 /// Represents a chat completion request in OpenAI's API format.
@@ -918,5 +920,158 @@ class OpenAIImageData {
   @override
   int get hashCode {
     return Object.hash(url, b64Json, revisedPrompt);
+  }
+}
+
+/// Represents a text-to-speech request in OpenAI's API format.
+///
+/// This model matches the structure expected by OpenAI's `/v1/audio/speech`
+/// endpoint.
+class OpenAITtsRequest {
+  /// ID of the model to use.
+  ///
+  /// Examples: "tts-1", "tts-1-hd"
+  final String model;
+
+  /// The text to convert to speech.
+  final String input;
+
+  /// The voice to use for generation.
+  ///
+  /// Options: "alloy", "echo", "fable", "onyx", "nova", "shimmer"
+  final String voice;
+
+  /// The format to return the audio in.
+  ///
+  /// Options: "mp3", "opus", "aac", "flac"
+  /// Defaults to "mp3" if not specified.
+  final String? responseFormat;
+
+  /// The speed of the generated audio.
+  ///
+  /// Range: 0.25 to 4.0. Defaults to 1.0.
+  final double? speed;
+
+  /// Creates a new [OpenAITtsRequest] instance.
+  OpenAITtsRequest({
+    required this.model,
+    required this.input,
+    required this.voice,
+    this.responseFormat,
+    this.speed,
+  })  : assert(model.isNotEmpty, 'model must not be empty'),
+        assert(input.isNotEmpty, 'input must not be empty'),
+        assert(voice.isNotEmpty, 'voice must not be empty'),
+        assert(speed == null || (speed >= 0.25 && speed <= 4.0),
+            'speed must be between 0.25 and 4.0');
+
+  /// Converts this request to a JSON map matching OpenAI's API format.
+  Map<String, dynamic> toJson() {
+    return {
+      'model': model,
+      'input': input,
+      'voice': voice,
+      if (responseFormat != null) 'response_format': responseFormat,
+      if (speed != null) 'speed': speed,
+    };
+  }
+
+  /// Creates an [OpenAITtsRequest] from a JSON map.
+  factory OpenAITtsRequest.fromJson(Map<String, dynamic> json) {
+    return OpenAITtsRequest(
+      model: json['model'] as String,
+      input: json['input'] as String,
+      voice: json['voice'] as String,
+      responseFormat: json['response_format'] as String?,
+      speed: (json['speed'] as num?)?.toDouble(),
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OpenAITtsRequest(model: $model, voice: $voice, input: ${input.length > 50 ? "${input.substring(0, 50)}..." : input})';
+  }
+}
+
+/// Represents a speech-to-text (transcription) request in OpenAI's API format.
+///
+/// This model matches the structure expected by OpenAI's `/v1/audio/transcriptions`
+/// endpoint. Note: The actual request uses multipart/form-data, not JSON.
+class OpenAISttRequest {
+  /// ID of the model to use.
+  ///
+  /// Examples: "whisper-1"
+  final String model;
+
+  /// The audio file to transcribe.
+  ///
+  /// This will be sent as a file in multipart/form-data.
+  final Uint8List audio;
+
+  /// The language of the input audio.
+  ///
+  /// ISO-639-1 format (e.g., "en", "es", "fr")
+  final String? language;
+
+  /// An optional text to guide the model's style or continue a previous audio segment.
+  final String? prompt;
+
+  /// The format of the transcript output.
+  ///
+  /// Options: "json", "text", "srt", "verbose_json", "vtt"
+  /// Defaults to "json" if not specified.
+  final String? responseFormat;
+
+  /// The sampling temperature.
+  ///
+  /// Range: 0.0 to 1.0. Defaults to 0.0.
+  final double? temperature;
+
+  /// Creates a new [OpenAISttRequest] instance.
+  OpenAISttRequest({
+    required this.model,
+    required this.audio,
+    this.language,
+    this.prompt,
+    this.responseFormat,
+    this.temperature,
+  })  : assert(model.isNotEmpty, 'model must not be empty'),
+        assert(audio.isNotEmpty, 'audio must not be empty'),
+        assert(
+            temperature == null || (temperature >= 0.0 && temperature <= 1.0),
+            'temperature must be between 0.0 and 1.0');
+
+  /// Converts this request to a map for multipart form data.
+  ///
+  /// Note: This doesn't include the audio file itself, which must be added
+  /// separately when building the multipart request.
+  Map<String, dynamic> toFormFields() {
+    return {
+      'model': model,
+      if (language != null) 'language': language,
+      if (prompt != null) 'prompt': prompt,
+      if (responseFormat != null) 'response_format': responseFormat,
+      if (temperature != null) 'temperature': temperature.toString(),
+    };
+  }
+
+  /// Creates an [OpenAISttRequest] from a JSON map.
+  ///
+  /// Note: The audio field must be provided separately as it's binary data.
+  factory OpenAISttRequest.fromJson(Map<String, dynamic> json,
+      {Uint8List? audio}) {
+    return OpenAISttRequest(
+      model: json['model'] as String,
+      audio: audio ?? Uint8List(0),
+      language: json['language'] as String?,
+      prompt: json['prompt'] as String?,
+      responseFormat: json['response_format'] as String?,
+      temperature: (json['temperature'] as num?)?.toDouble(),
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OpenAISttRequest(model: $model, audio: ${audio.length} bytes${language != null ? ", language: $language" : ""})';
   }
 }
