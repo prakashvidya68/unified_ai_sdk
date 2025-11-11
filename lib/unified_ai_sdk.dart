@@ -50,6 +50,7 @@
 /// - Google (Gemini)
 /// - Cohere
 /// - xAI (Grok)
+/// - Mistral AI
 ///
 /// **Documentation:**
 /// For detailed API documentation, see the generated docs or visit the

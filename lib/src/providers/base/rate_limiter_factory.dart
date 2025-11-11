@@ -49,6 +49,7 @@ class RateLimiterFactory {
     'google': 60,
     'cohere': 100,
     'xai': 60,
+    'mistral': 50,
   };
 
   /// Creates a rate limiter for the specified provider.
