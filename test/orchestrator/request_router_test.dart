@@ -11,6 +11,7 @@ import 'package:unified_ai_sdk/src/models/requests/stt_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/tts_request.dart';
 import 'package:unified_ai_sdk/src/models/responses/audio_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/chat_stream_event.dart';
 import 'package:unified_ai_sdk/src/models/responses/embedding_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/image_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/transcription_response.dart';
@@ -58,7 +59,9 @@ class MockRouterProvider extends AiProvider {
       throw UnimplementedError();
 
   @override
-  Stream<ChatStreamEvent>? chatStream(ChatRequest request) => null;
+  Stream<ChatStreamEvent> chatStream(ChatRequest request) async* {
+    // Mock implementation - empty stream
+  }
 
   @override
   Future<EmbeddingResponse> embed(EmbeddingRequest request) async =>

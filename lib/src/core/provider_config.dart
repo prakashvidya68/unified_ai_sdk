@@ -38,8 +38,8 @@ import 'authentication.dart';
 class ProviderConfig {
   /// Unique identifier for this provider configuration.
   ///
-  /// This ID should match the provider's [AiProvider.id] and is used to:
-  /// - Register the provider in the [ProviderRegistry]
+  /// This ID should match the provider's identifier and is used to:
+  /// - Register the provider in the registry
   /// - Reference the provider in API calls
   /// - Map configuration to provider instances
   ///

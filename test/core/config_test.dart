@@ -5,9 +5,19 @@ import 'package:unified_ai_sdk/src/core/config.dart';
 import 'package:unified_ai_sdk/src/core/provider_config.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
 import 'package:unified_ai_sdk/src/retry/retry_policy.dart';
+import 'package:unified_ai_sdk/src/telemetry/telemetry_handler.dart';
 
 // Mock implementations for testing
-class MockTelemetryHandler extends TelemetryHandler {}
+class MockTelemetryHandler implements TelemetryHandler {
+  @override
+  Future<void> onRequest(RequestTelemetry event) async {}
+
+  @override
+  Future<void> onResponse(ResponseTelemetry event) async {}
+
+  @override
+  Future<void> onError(ErrorTelemetry event) async {}
+}
 
 void main() {
   group('UnifiedAIConfig', () {

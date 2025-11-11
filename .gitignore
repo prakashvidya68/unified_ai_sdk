@@ -9,3 +9,9 @@ pubspec.lock
 # FVM Version Cache
 .fvm/
 .vscode/launch.json
+
+# Test coverage data
+coverage/
+
+# Generated API documentation
+doc/
