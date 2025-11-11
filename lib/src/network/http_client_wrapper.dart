@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../error/error_mapper.dart';
+import '../retry/rate_limiter.dart';
 import 'request_interceptor.dart';
 import 'response_interceptor.dart';
 
@@ -72,6 +73,15 @@ class HttpClientWrapper {
   /// Common use cases: logging, error preprocessing, metadata extraction.
   final List<ResponseInterceptor> responseInterceptors;
 
+  /// Optional rate limiter for controlling request rate.
+  ///
+  /// If provided, [acquire] will be called before making HTTP requests to
+  /// ensure requests don't exceed the configured rate limit. This helps
+  /// prevent hitting provider rate limits and ensures smooth operation.
+  ///
+  /// If `null`, no rate limiting is applied.
+  final RateLimiter? rateLimiter;
+
   /// Creates a new [HttpClientWrapper] instance.
   ///
   /// **Parameters:**
@@ -82,6 +92,9 @@ class HttpClientWrapper {
   ///   sending requests. Defaults to empty list if not provided.
   /// - [responseInterceptors]: List of response interceptors to apply after
   ///   receiving responses. Defaults to empty list if not provided.
+  /// - [rateLimiter]: Optional rate limiter for controlling request rate.
+  ///   If provided, requests will be rate-limited according to the limiter's
+  ///   configuration. Defaults to `null` (no rate limiting).
   ///
   /// **Example:**
   /// ```dart
@@ -98,6 +111,10 @@ class HttpClientWrapper {
   ///   responseInterceptors: [
   ///     LoggingInterceptor(),
   ///   ],
+  ///   rateLimiter: RateLimiter(
+  ///     maxRequests: 60,
+  ///     window: Duration(minutes: 1),
+  ///   ),
   /// );
   /// ```
   HttpClientWrapper({
@@ -105,6 +122,7 @@ class HttpClientWrapper {
     Map<String, String>? defaultHeaders,
     List<RequestInterceptor>? requestInterceptors,
     List<ResponseInterceptor>? responseInterceptors,
+    this.rateLimiter,
   })  : _client = client,
         defaultHeaders = defaultHeaders ?? const {},
         requestInterceptors = requestInterceptors ?? const [],
@@ -178,6 +196,11 @@ class HttpClientWrapper {
     Map<String, String>? headers,
   }) async {
     try {
+      // Acquire rate limit token if rate limiter is configured
+      if (rateLimiter != null) {
+        await rateLimiter!.acquire();
+      }
+
       final mergedHeaders = _mergeHeaders(headers);
 
       var request = http.Request('GET', Uri.parse(url))
@@ -250,6 +273,11 @@ class HttpClientWrapper {
     Object? body,
   }) async {
     try {
+      // Acquire rate limit token if rate limiter is configured
+      if (rateLimiter != null) {
+        await rateLimiter!.acquire();
+      }
+
       // Merge default headers with request-specific headers
       final mergedHeaders = _mergeHeaders(headers);
 
@@ -331,6 +359,12 @@ class HttpClientWrapper {
     Object? body,
   }) async* {
     try {
+      // Acquire rate limit token if rate limiter is configured
+      // Note: For streaming, we acquire once before starting the stream
+      if (rateLimiter != null) {
+        await rateLimiter!.acquire();
+      }
+
       // Merge default headers (no request-specific headers for streaming)
       final headers = Map<String, String>.from(defaultHeaders);
 

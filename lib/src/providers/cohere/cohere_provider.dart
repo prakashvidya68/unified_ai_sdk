@@ -21,6 +21,7 @@ import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
 import '../base/provider_mapper.dart';
+import '../base/rate_limiter_factory.dart';
 import 'cohere_mapper.dart';
 import 'cohere_models.dart';
 
@@ -165,12 +166,17 @@ class CohereProvider extends AiProvider {
     // Initialize HTTP client wrapper with authentication headers
     // Allow injecting custom client for testing via settings
     final customClient = config.settings['httpClient'] as http.Client?;
+
+    // Create rate limiter for this provider
+    final rateLimiter = RateLimiterFactory.create(id, config.settings);
+
     _http = HttpClientWrapper(
       client: customClient ?? http.Client(),
       defaultHeaders: {
         ...authHeaders,
         'Content-Type': 'application/json',
       },
+      rateLimiter: rateLimiter,
     );
   }
 
