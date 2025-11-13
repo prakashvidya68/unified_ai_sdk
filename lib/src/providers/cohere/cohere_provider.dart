@@ -12,11 +12,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
@@ -60,7 +64,7 @@ import 'cohere_models.dart';
 /// ```
 class CohereProvider extends AiProvider {
   /// Default base URL for Cohere API.
-  static const String _defaultBaseUrl = 'https://api.cohere.ai/v1';
+  static const String _defaultBaseUrl = 'https://api.cohere.com/v1';
 
   /// API key for authenticating requests.
   late final String _apiKey;
@@ -109,12 +113,12 @@ class CohereProvider extends AiProvider {
   @override
   ProviderCapabilities get capabilities {
     _capabilities ??= ProviderCapabilities(
-      supportsChat: false, // Cohere doesn't support chat via this API
+      supportsChat: true, // Cohere supports chat via Command R/R+ models
       supportsEmbedding: true, // Cohere's primary capability
       supportsImageGeneration: false, // Cohere doesn't support image generation
       supportsTTS: false, // Not yet supported
       supportsSTT: false, // Not yet supported
-      supportsStreaming: false, // Embeddings don't support streaming
+      supportsStreaming: true, // Cohere chat supports streaming
       fallbackModels: _fallbackModels,
       dynamicModels: false, // Cohere doesn't have a public models endpoint
     );
@@ -182,12 +186,32 @@ class CohereProvider extends AiProvider {
 
   @override
   Future<ChatResponse> chat(ChatRequest request) async {
-    // Cohere doesn't support chat completions
-    throw CapabilityError(
-      message: 'Cohere API does not support chat completions',
-      code: 'UNSUPPORTED_CAPABILITY',
-      provider: id,
+    // Validate that chat is supported
+    validateCapability('chat');
+
+    // Map SDK request to Cohere format
+    final cohereRequest = _mapper.mapChatRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as CohereChatRequest;
+
+    // Make HTTP POST request to chat endpoint
+    final response = await _http.post(
+      '$_baseUrl/chat',
+      body: jsonEncode(cohereRequest.toJson()),
     );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final cohereResponse = CohereChatResponse.fromJson(responseJson);
+
+    // Map Cohere response to SDK format
+    return _mapper.mapChatResponse(cohereResponse);
   }
 
   @override
@@ -240,6 +264,27 @@ class CohereProvider extends AiProvider {
   Future<TranscriptionResponse> stt(SttRequest request) async {
     // Not yet implemented
     throw UnimplementedError('stt() is not yet implemented for Cohere');
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    // Cohere doesn't support video generation
+    throw CapabilityError(
+      message: 'Cohere API does not support video generation',
+      code: 'UNSUPPORTED_CAPABILITY',
+      provider: id,
+    );
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(
+      VideoAnalysisRequest request) async {
+    // Cohere doesn't support video analysis
+    throw CapabilityError(
+      message: 'Cohere API does not support video analysis',
+      code: 'UNSUPPORTED_CAPABILITY',
+      provider: id,
+    );
   }
 
   /// Gets the default model for this provider.

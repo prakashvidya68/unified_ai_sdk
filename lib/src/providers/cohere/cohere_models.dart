@@ -365,3 +365,243 @@ class CohereEmbeddingResponse {
     return true;
   }
 }
+
+/// Represents a chat completion request in Cohere API format.
+///
+/// This model matches the exact structure expected by Cohere's `/v1/chat` endpoint.
+///
+/// **Cohere API Reference:**
+/// https://docs.cohere.com/reference/chat
+class CohereChatRequest {
+  /// The model to use for chat completion.
+  ///
+  /// Examples: "command-r-plus", "command-r", "command"
+  final String? model;
+
+  /// List of messages in the conversation.
+  ///
+  /// Each message has a role ("user", "assistant", "system") and content.
+  final List<Map<String, dynamic>> message;
+
+  /// Optional conversation ID for maintaining context.
+  final String? conversationId;
+
+  /// Optional list of documents to ground the response.
+  final List<Map<String, dynamic>>? documents;
+
+  /// Optional list of tools/functions the model can use.
+  final List<Map<String, dynamic>>? tools;
+
+  /// Optional tool choice configuration.
+  final dynamic toolChoice;
+
+  /// Optional temperature for sampling.
+  final double? temperature;
+
+  /// Optional max tokens to generate.
+  final int? maxTokens;
+
+  /// Optional top-p for sampling.
+  final double? p;
+
+  /// Optional top-k for sampling.
+  final int? k;
+
+  /// Optional stop sequences.
+  final List<String>? stopSequences;
+
+  /// Optional frequency penalty.
+  final double? frequencyPenalty;
+
+  /// Optional presence penalty.
+  final double? presencePenalty;
+
+  /// Whether to stream the response.
+  final bool? stream;
+
+  /// Optional preamble override.
+  final String? preambleOverride;
+
+  /// Creates a new [CohereChatRequest] instance.
+  CohereChatRequest({
+    this.model,
+    required this.message,
+    this.conversationId,
+    this.documents,
+    this.tools,
+    this.toolChoice,
+    this.temperature,
+    this.maxTokens,
+    this.p,
+    this.k,
+    this.stopSequences,
+    this.frequencyPenalty,
+    this.presencePenalty,
+    this.stream,
+    this.preambleOverride,
+  }) : assert(message.isNotEmpty, 'message must not be empty');
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (model != null) 'model': model,
+      'message': message,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (documents != null && documents!.isNotEmpty) 'documents': documents,
+      if (tools != null && tools!.isNotEmpty) 'tools': tools,
+      if (toolChoice != null) 'tool_choice': toolChoice,
+      if (temperature != null) 'temperature': temperature,
+      if (maxTokens != null) 'max_tokens': maxTokens,
+      if (p != null) 'p': p,
+      if (k != null) 'k': k,
+      if (stopSequences != null && stopSequences!.isNotEmpty)
+        'stop_sequences': stopSequences,
+      if (frequencyPenalty != null) 'frequency_penalty': frequencyPenalty,
+      if (presencePenalty != null) 'presence_penalty': presencePenalty,
+      if (stream == true) 'stream': stream,
+      if (preambleOverride != null) 'preamble_override': preambleOverride,
+    };
+  }
+
+  /// Creates a [CohereChatRequest] from a JSON map.
+  factory CohereChatRequest.fromJson(Map<String, dynamic> json) {
+    final message = json['message'] as List<dynamic>?;
+    if (message == null || message.isEmpty) {
+      throw ClientError(
+        message: 'Missing or empty required field: message',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    return CohereChatRequest(
+      model: json['model'] as String?,
+      message: List<Map<String, dynamic>>.from(
+        message.map((m) => m as Map<String, dynamic>),
+      ),
+      conversationId: json['conversation_id'] as String?,
+      documents: json['documents'] != null
+          ? List<Map<String, dynamic>>.from(
+              (json['documents'] as List).map((d) => d as Map<String, dynamic>),
+            )
+          : null,
+      tools: json['tools'] != null
+          ? List<Map<String, dynamic>>.from(
+              (json['tools'] as List).map((t) => t as Map<String, dynamic>),
+            )
+          : null,
+      toolChoice: json['tool_choice'],
+      temperature: json['temperature'] as double?,
+      maxTokens: json['max_tokens'] as int?,
+      p: json['p'] as double?,
+      k: json['k'] as int?,
+      stopSequences: json['stop_sequences'] != null
+          ? List<String>.from(json['stop_sequences'] as List)
+          : null,
+      frequencyPenalty: json['frequency_penalty'] as double?,
+      presencePenalty: json['presence_penalty'] as double?,
+      stream: json['stream'] as bool?,
+      preambleOverride: json['preamble_override'] as String?,
+    );
+  }
+}
+
+/// Represents a chat completion response in Cohere API format.
+///
+/// This model matches the exact structure returned by Cohere's `/v1/chat` endpoint.
+class CohereChatResponse {
+  /// The generated text response.
+  final String text;
+
+  /// The model used for generation.
+  final String? model;
+
+  /// Optional conversation ID.
+  final String? conversationId;
+
+  /// Optional finish reason.
+  final String? finishReason;
+
+  /// Optional citations.
+  final List<Map<String, dynamic>>? citations;
+
+  /// Optional documents used.
+  final List<Map<String, dynamic>>? documents;
+
+  /// Optional search results.
+  final List<Map<String, dynamic>>? searchResults;
+
+  /// Optional search queries.
+  final List<Map<String, dynamic>>? searchQueries;
+
+  /// Optional tool calls.
+  final List<Map<String, dynamic>>? toolCalls;
+
+  /// Optional usage statistics.
+  final CohereUsage? usage;
+
+  /// Creates a new [CohereChatResponse] instance.
+  CohereChatResponse({
+    required this.text,
+    this.model,
+    this.conversationId,
+    this.finishReason,
+    this.citations,
+    this.documents,
+    this.searchResults,
+    this.searchQueries,
+    this.toolCalls,
+    this.usage,
+  });
+
+  /// Creates a [CohereChatResponse] from a JSON map.
+  factory CohereChatResponse.fromJson(Map<String, dynamic> json) {
+    final text = json['text'] as String?;
+    if (text == null) {
+      throw ClientError(
+        message: 'Missing required field: text',
+        code: 'INVALID_RESPONSE',
+      );
+    }
+
+    return CohereChatResponse(
+      text: text,
+      model: json['model'] as String?,
+      conversationId: json['conversation_id'] as String?,
+      finishReason: json['finish_reason'] as String?,
+      citations: json['citations'] != null
+          ? List<Map<String, dynamic>>.from(json['citations'] as List)
+          : null,
+      documents: json['documents'] != null
+          ? List<Map<String, dynamic>>.from(json['documents'] as List)
+          : null,
+      searchResults: json['search_results'] != null
+          ? List<Map<String, dynamic>>.from(json['search_results'] as List)
+          : null,
+      searchQueries: json['search_queries'] != null
+          ? List<Map<String, dynamic>>.from(json['search_queries'] as List)
+          : null,
+      toolCalls: json['tool_calls'] != null
+          ? List<Map<String, dynamic>>.from(json['tool_calls'] as List)
+          : null,
+      usage: json['meta'] != null && json['meta'] is Map<String, dynamic>
+          ? CohereUsage.fromJson(json['meta'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'text': text,
+      if (model != null) 'model': model,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (finishReason != null) 'finish_reason': finishReason,
+      if (citations != null) 'citations': citations,
+      if (documents != null) 'documents': documents,
+      if (searchResults != null) 'search_results': searchResults,
+      if (searchQueries != null) 'search_queries': searchQueries,
+      if (toolCalls != null) 'tool_calls': toolCalls,
+      if (usage != null) 'meta': usage!.toJson(),
+    };
+  }
+}
