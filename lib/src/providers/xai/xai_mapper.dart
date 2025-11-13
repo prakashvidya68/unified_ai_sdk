@@ -14,11 +14,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'xai_models.dart';
@@ -326,6 +330,177 @@ class XAIMapper implements ProviderMapper {
       message: 'xAI does not support speech-to-text',
       code: 'STT_NOT_SUPPORTED',
       provider: 'xai',
+    );
+  }
+
+  @override
+  dynamic mapVideoRequest(VideoRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'xAI does not support video generation',
+      code: 'VIDEO_GENERATION_NOT_SUPPORTED',
+      provider: 'xai',
+    );
+  }
+
+  @override
+  VideoResponse mapVideoResponse(dynamic response) {
+    throw CapabilityError(
+      message: 'xAI does not support video generation',
+      code: 'VIDEO_GENERATION_NOT_SUPPORTED',
+      provider: 'xai',
+    );
+  }
+
+  @override
+  XAIChatRequest mapVideoAnalysisRequest(
+    VideoAnalysisRequest request, {
+    String? defaultModel,
+  }) {
+    // Determine model - default to grok-vision-beta if not specified
+    final model = request.model ?? defaultModel ?? 'grok-vision-beta';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in VideoAnalysisRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Extract xAI-specific options
+    final xaiOptions = request.providerOptions?['xai'] ?? <String, dynamic>{};
+
+    // Build messages for video analysis
+    // xAI uses chat completions with video content in messages
+    final messages = <Map<String, dynamic>>[];
+
+    // Build user message with video content
+    final content = <Map<String, dynamic>>[];
+
+    // Add text prompt if provided via features or as a prompt
+    final promptText = xaiOptions['prompt'] as String? ??
+        (request.features != null && request.features!.isNotEmpty
+            ? 'Analyze this video and extract: ${request.features!.join(", ")}'
+            : 'Analyze this video and provide a detailed description.');
+
+    if (promptText.isNotEmpty) {
+      content.add({
+        'type': 'text',
+        'text': promptText,
+      });
+    }
+
+    // Add video content
+    if (request.videoUrl != null) {
+      content.add({
+        'type': 'video_url',
+        'video_url': {
+          'url': request.videoUrl,
+        },
+      });
+    } else if (request.videoBase64 != null) {
+      // For base64, we need to format it as data URL
+      final mimeType = xaiOptions['mime_type'] as String? ?? 'video/mp4';
+      content.add({
+        'type': 'video_url',
+        'video_url': {
+          'url': 'data:$mimeType;base64,${request.videoBase64}',
+        },
+      });
+    }
+
+    if (content.isEmpty) {
+      throw ClientError(
+        message: 'Either videoUrl or videoBase64 must be provided',
+        code: 'MISSING_VIDEO',
+      );
+    }
+
+    messages.add({
+      'role': 'user',
+      'content': content,
+    });
+
+    // Build xAI request (similar to chat request but with video content)
+    return XAIChatRequest(
+      model: model,
+      messages: messages,
+      temperature: request.confidenceThreshold != null
+          ? 1.0 - request.confidenceThreshold!
+          : (xaiOptions['temperature'] as double?),
+      maxTokens:
+          xaiOptions['max_tokens'] as int? ?? xaiOptions['maxTokens'] as int?,
+      topP: xaiOptions['top_p'] as double? ?? xaiOptions['topP'] as double?,
+      user: xaiOptions['user'] as String?,
+    );
+  }
+
+  @override
+  VideoAnalysisResponse mapVideoAnalysisResponse(dynamic response) {
+    if (response is! XAIChatResponse) {
+      throw ArgumentError(
+        'Expected XAIChatResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Extract analysis text from the first choice
+    String analysisText = '';
+    if (response.choices.isNotEmpty) {
+      final firstChoice = response.choices.first;
+      final message = firstChoice.message;
+      final content = message['content'] as String?;
+      if (content != null) {
+        analysisText = content;
+      }
+    }
+
+    // Parse the analysis text to extract structured information
+    // This is a simplified implementation - in practice, you might want to
+    // use structured output or parse the text more intelligently
+    final objects = <DetectedObject>[];
+    final scenes = <DetectedScene>[];
+    final actions = <DetectedAction>[];
+    final text = <ExtractedText>[];
+    final labels = <String>[];
+
+    // Basic parsing - extract labels from the analysis text
+    if (analysisText.isNotEmpty) {
+      // Extract potential labels (simple heuristic)
+      final words = analysisText.split(RegExp(r'[.,;!?\s]+'));
+      for (final word in words) {
+        if (word.length > 3 && word[0].toUpperCase() == word[0]) {
+          labels.add(word);
+        }
+      }
+
+      // If no labels found, add the full text as a label
+      if (labels.isEmpty && analysisText.length < 100) {
+        labels.add(analysisText);
+      }
+    }
+
+    // Build metadata from xAI-specific fields
+    final metadata = <String, dynamic>{
+      'id': response.id,
+      'object': response.object,
+      'created': response.created,
+      'analysis_text': analysisText,
+      'usage': {
+        'prompt_tokens': response.usage.promptTokens,
+        'completion_tokens': response.usage.completionTokens,
+        'total_tokens': response.usage.totalTokens,
+      },
+    };
+
+    return VideoAnalysisResponse(
+      objects: objects,
+      scenes: scenes,
+      actions: actions,
+      text: text,
+      labels: labels,
+      model: response.model,
+      provider: 'xai',
+      timestamp: DateTime.fromMillisecondsSinceEpoch(response.created * 1000),
+      metadata: metadata,
     );
   }
 }

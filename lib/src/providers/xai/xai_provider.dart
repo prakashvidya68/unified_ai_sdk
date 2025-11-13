@@ -12,12 +12,16 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/chat_stream_event.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
@@ -106,6 +110,9 @@ class XAIProvider extends AiProvider {
       supportsImageGeneration: true,
       supportsTTS: false,
       supportsSTT: false,
+      supportsVideoGeneration: false, // xAI doesn't support video generation
+      supportsVideoAnalysis:
+          true, // xAI supports video analysis via View X Video Tool
       supportsStreaming: true,
       fallbackModels: _fallbackModels,
       dynamicModels: false, // xAI doesn't support dynamic model fetching yet
@@ -423,6 +430,48 @@ class XAIProvider extends AiProvider {
       code: 'STT_NOT_SUPPORTED',
       provider: id,
     );
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    // xAI doesn't support video generation
+    throw CapabilityError(
+      message: 'xAI API does not support video generation',
+      code: 'UNSUPPORTED_CAPABILITY',
+      provider: id,
+    );
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(
+      VideoAnalysisRequest request) async {
+    // Validate that video analysis is supported
+    validateCapability('videoAnalysis');
+
+    // xAI video analysis uses Grok's vision capabilities via chat completions
+    // We'll use the chat API with video content in messages
+    final xaiRequest = _mapper.mapVideoAnalysisRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as XAIChatRequest;
+
+    // Make HTTP POST request to chat/completions endpoint
+    final response = await _http.post(
+      '$_baseUrl/chat/completions',
+      body: jsonEncode(xaiRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final xaiResponse = XAIChatResponse.fromJson(responseJson);
+
+    // Map xAI response to SDK format
+    return _mapper.mapVideoAnalysisResponse(xaiResponse);
   }
 
   /// Gets the default model for this provider.
