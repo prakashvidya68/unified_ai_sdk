@@ -13,6 +13,9 @@
 /// https://ai.google.dev/api/generateContent
 library;
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 import '../../error/error_types.dart';
 
 /// Represents a content part in Google Gemini API format.
@@ -672,5 +675,496 @@ class GoogleChatResponse {
       if (a[key] != b[key]) return false;
     }
     return true;
+  }
+}
+
+/// Represents an embedding request in Google Gemini API format.
+///
+/// Google provides embeddings via the embedContent endpoint.
+/// Models: text-embedding-004, text-embedding-3, gemini-embedding-001
+class GoogleEmbeddingRequest {
+  /// The model to use for embeddings.
+  final String? model;
+
+  /// The content to embed.
+  ///
+  /// Can be a single string or a map with parts (for multimodal).
+  final dynamic content;
+
+  /// Task type for the embedding.
+  ///
+  /// Options: "RETRIEVAL_QUERY", "RETRIEVAL_DOCUMENT", "SEMANTIC_SIMILARITY", etc.
+  final String? taskType;
+
+  /// Title for the content (optional).
+  final String? title;
+
+  /// Creates a new [GoogleEmbeddingRequest] instance.
+  GoogleEmbeddingRequest({
+    this.model,
+    required this.content,
+    this.taskType,
+    this.title,
+  });
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (model != null) 'model': model,
+      'content': content is Map
+          ? content
+          : {
+              'parts': [
+                {'text': content}
+              ]
+            },
+      if (taskType != null) 'taskType': taskType,
+      if (title != null) 'title': title,
+    };
+  }
+
+  /// Creates a [GoogleEmbeddingRequest] from a JSON map.
+  factory GoogleEmbeddingRequest.fromJson(Map<String, dynamic> json) {
+    return GoogleEmbeddingRequest(
+      model: json['model'] as String?,
+      content: json['content'],
+      taskType: json['taskType'] as String?,
+      title: json['title'] as String?,
+    );
+  }
+}
+
+/// Represents an embedding response in Google Gemini API format.
+class GoogleEmbeddingResponse {
+  /// The embedding values.
+  final GoogleEmbedding embedding;
+
+  /// Creates a new [GoogleEmbeddingResponse] instance.
+  GoogleEmbeddingResponse({required this.embedding});
+
+  /// Creates a [GoogleEmbeddingResponse] from a JSON map.
+  factory GoogleEmbeddingResponse.fromJson(Map<String, dynamic> json) {
+    return GoogleEmbeddingResponse(
+      embedding: GoogleEmbedding.fromJson(
+        json['embedding'] as Map<String, dynamic>,
+      ),
+    );
+  }
+}
+
+/// Represents a single embedding in Google format.
+class GoogleEmbedding {
+  /// The embedding vector values.
+  final List<double> values;
+
+  /// Creates a new [GoogleEmbedding] instance.
+  GoogleEmbedding({required this.values});
+
+  /// Creates a [GoogleEmbedding] from a JSON map.
+  factory GoogleEmbedding.fromJson(Map<String, dynamic> json) {
+    final valuesList = json['values'] as List<dynamic>?;
+    return GoogleEmbedding(
+      values: valuesList != null
+          ? valuesList.map((v) => (v as num).toDouble()).toList()
+          : [],
+    );
+  }
+}
+
+/// Represents an image generation request in Google Imagen API format.
+class GoogleImageRequest {
+  /// The model to use for image generation.
+  final String? model;
+
+  /// The text prompt describing the image to generate.
+  final String prompt;
+
+  /// Number of images to generate.
+  final int? numberOfImages;
+
+  /// Aspect ratio for the generated images.
+  final String? aspectRatio;
+
+  /// Safety filter level.
+  final String? safetyFilterLevel;
+
+  /// Person generation setting.
+  final String? personGeneration;
+
+  /// Creates a new [GoogleImageRequest] instance.
+  GoogleImageRequest({
+    this.model,
+    required this.prompt,
+    this.numberOfImages,
+    this.aspectRatio,
+    this.safetyFilterLevel,
+    this.personGeneration,
+  });
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (model != null) 'model': model,
+      'instances': [
+        {
+          'prompt': prompt,
+        }
+      ],
+      'parameters': {
+        if (numberOfImages != null) 'sampleCount': numberOfImages,
+        if (aspectRatio != null) 'aspectRatio': aspectRatio,
+        if (safetyFilterLevel != null) 'safetyFilterLevel': safetyFilterLevel,
+        if (personGeneration != null) 'personGeneration': personGeneration,
+      },
+    };
+  }
+
+  /// Creates a [GoogleImageRequest] from a JSON map.
+  factory GoogleImageRequest.fromJson(Map<String, dynamic> json) {
+    final instances = json['instances'] as List<dynamic>?;
+    final prompt = instances != null && instances.isNotEmpty
+        ? (instances[0] as Map<String, dynamic>)['prompt'] as String?
+        : null;
+    final parameters = json['parameters'] as Map<String, dynamic>?;
+    return GoogleImageRequest(
+      model: json['model'] as String?,
+      prompt: prompt ?? '',
+      numberOfImages: parameters?['sampleCount'] as int?,
+      aspectRatio: parameters?['aspectRatio'] as String?,
+      safetyFilterLevel: parameters?['safetyFilterLevel'] as String?,
+      personGeneration: parameters?['personGeneration'] as String?,
+    );
+  }
+}
+
+/// Represents an image generation response in Google Imagen API format.
+class GoogleImageResponse {
+  /// List of generated images.
+  final List<GoogleImageData> predictions;
+
+  /// Creates a new [GoogleImageResponse] instance.
+  GoogleImageResponse({required this.predictions});
+
+  /// Creates a [GoogleImageResponse] from a JSON map.
+  factory GoogleImageResponse.fromJson(Map<String, dynamic> json) {
+    final predictions = json['predictions'] as List<dynamic>?;
+    return GoogleImageResponse(
+      predictions: predictions != null
+          ? predictions
+              .map((p) => GoogleImageData.fromJson(p as Map<String, dynamic>))
+              .toList()
+          : [],
+    );
+  }
+}
+
+/// Represents a single generated image in Google format.
+class GoogleImageData {
+  /// Base64-encoded image data.
+  final String? bytesBase64Encoded;
+
+  /// MIME type of the image.
+  final String? mimeType;
+
+  /// Creates a new [GoogleImageData] instance.
+  GoogleImageData({
+    this.bytesBase64Encoded,
+    this.mimeType,
+  });
+
+  /// Creates a [GoogleImageData] from a JSON map.
+  factory GoogleImageData.fromJson(Map<String, dynamic> json) {
+    return GoogleImageData(
+      bytesBase64Encoded: json['bytesBase64Encoded'] as String?,
+      mimeType: json['mimeType'] as String?,
+    );
+  }
+}
+
+/// Represents a text-to-speech request in Google TTS API format.
+class GoogleTtsRequest {
+  /// The text to convert to speech.
+  final String input;
+
+  /// The voice configuration.
+  final Map<String, dynamic> voice;
+
+  /// The audio configuration.
+  final Map<String, dynamic> audioConfig;
+
+  /// Creates a new [GoogleTtsRequest] instance.
+  GoogleTtsRequest({
+    required this.input,
+    required this.voice,
+    required this.audioConfig,
+  });
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'input': {'text': input},
+      'voice': voice,
+      'audioConfig': audioConfig,
+    };
+  }
+
+  /// Creates a [GoogleTtsRequest] from a JSON map.
+  factory GoogleTtsRequest.fromJson(Map<String, dynamic> json) {
+    final inputMap = json['input'] as Map<String, dynamic>?;
+    return GoogleTtsRequest(
+      input: inputMap?['text'] as String? ?? '',
+      voice: json['voice'] as Map<String, dynamic>? ?? {},
+      audioConfig: json['audioConfig'] as Map<String, dynamic>? ?? {},
+    );
+  }
+}
+
+/// Represents a speech-to-text request in Google STT API format.
+class GoogleSttRequest {
+  /// The audio data to transcribe.
+  final Uint8List audio;
+
+  /// The audio configuration.
+  final Map<String, dynamic> config;
+
+  /// Creates a new [GoogleSttRequest] instance.
+  GoogleSttRequest({
+    required this.audio,
+    required this.config,
+  });
+
+  /// Converts this request to form fields for multipart request.
+  Map<String, dynamic> toFormFields() {
+    return {
+      'config': jsonEncode(config),
+    };
+  }
+
+  /// Creates a [GoogleSttRequest] from a JSON map.
+  factory GoogleSttRequest.fromJson(Map<String, dynamic> json,
+      {Uint8List? audio}) {
+    return GoogleSttRequest(
+      audio: audio ?? Uint8List(0),
+      config: json['config'] as Map<String, dynamic>? ?? {},
+    );
+  }
+}
+
+/// Represents a video generation request in Google Veo API format.
+class GoogleVideoRequest {
+  /// The model to use for video generation.
+  final String? model;
+
+  /// The text prompt describing the video to generate.
+  final String prompt;
+
+  /// Optional duration in seconds.
+  final int? duration;
+
+  /// Optional aspect ratio.
+  final String? aspectRatio;
+
+  /// Optional frame rate.
+  final int? frameRate;
+
+  /// Optional quality setting.
+  final String? quality;
+
+  /// Optional seed for reproducibility.
+  final int? seed;
+
+  /// Creates a new [GoogleVideoRequest] instance.
+  GoogleVideoRequest({
+    this.model,
+    required this.prompt,
+    this.duration,
+    this.aspectRatio,
+    this.frameRate,
+    this.quality,
+    this.seed,
+  });
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (model != null) 'model': model,
+      'prompt': prompt,
+      if (duration != null) 'duration': duration,
+      if (aspectRatio != null) 'aspectRatio': aspectRatio,
+      if (frameRate != null) 'frameRate': frameRate,
+      if (quality != null) 'quality': quality,
+      if (seed != null) 'seed': seed,
+    };
+  }
+
+  /// Creates a [GoogleVideoRequest] from a JSON map.
+  factory GoogleVideoRequest.fromJson(Map<String, dynamic> json) {
+    return GoogleVideoRequest(
+      model: json['model'] as String?,
+      prompt: json['prompt'] as String,
+      duration: json['duration'] as int?,
+      aspectRatio: json['aspectRatio'] as String?,
+      frameRate: json['frameRate'] as int?,
+      quality: json['quality'] as String?,
+      seed: json['seed'] as int?,
+    );
+  }
+}
+
+/// Represents a video generation response in Google Veo API format.
+class GoogleVideoResponse {
+  /// List of generated videos.
+  final List<GoogleVideoData> videos;
+
+  /// The model used for generation.
+  final String model;
+
+  /// Creates a new [GoogleVideoResponse] instance.
+  GoogleVideoResponse({
+    required this.videos,
+    required this.model,
+  });
+
+  /// Creates a [GoogleVideoResponse] from a JSON map.
+  factory GoogleVideoResponse.fromJson(Map<String, dynamic> json) {
+    final videos = json['videos'] as List<dynamic>?;
+    return GoogleVideoResponse(
+      videos: videos != null
+          ? videos
+              .map((v) => GoogleVideoData.fromJson(v as Map<String, dynamic>))
+              .toList()
+          : [],
+      model: json['model'] as String? ?? 'veo-3.1',
+    );
+  }
+}
+
+/// Represents a single generated video in Google format.
+class GoogleVideoData {
+  /// URL of the generated video.
+  final String? url;
+
+  /// Base64-encoded video data.
+  final String? base64;
+
+  /// Optional width in pixels.
+  final int? width;
+
+  /// Optional height in pixels.
+  final int? height;
+
+  /// Optional duration in seconds.
+  final int? duration;
+
+  /// Optional frame rate.
+  final int? frameRate;
+
+  /// Creates a new [GoogleVideoData] instance.
+  GoogleVideoData({
+    this.url,
+    this.base64,
+    this.width,
+    this.height,
+    this.duration,
+    this.frameRate,
+  });
+
+  /// Creates a [GoogleVideoData] from a JSON map.
+  factory GoogleVideoData.fromJson(Map<String, dynamic> json) {
+    return GoogleVideoData(
+      url: json['url'] as String?,
+      base64: json['base64'] as String?,
+      width: json['width'] as int?,
+      height: json['height'] as int?,
+      duration: json['duration'] as int?,
+      frameRate: json['frameRate'] as int?,
+    );
+  }
+}
+
+/// Represents a video analysis request in Google Gemini API format.
+///
+/// Uses Gemini's multimodal capabilities to analyze video content.
+class GoogleVideoAnalysisRequest {
+  /// The model to use for video analysis.
+  final String? model;
+
+  /// List of messages with video content.
+  final List<GoogleMessage> contents;
+
+  /// System instruction (optional).
+  final Map<String, dynamic>? systemInstruction;
+
+  /// Generation configuration.
+  final Map<String, dynamic>? generationConfig;
+
+  /// Creates a new [GoogleVideoAnalysisRequest] instance.
+  GoogleVideoAnalysisRequest({
+    this.model,
+    required this.contents,
+    this.systemInstruction,
+    this.generationConfig,
+  });
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (model != null) 'model': model,
+      'contents': contents.map((c) => c.toJson()).toList(),
+      if (systemInstruction != null) 'systemInstruction': systemInstruction,
+      if (generationConfig != null) 'generationConfig': generationConfig,
+    };
+  }
+
+  /// Creates a [GoogleVideoAnalysisRequest] from a JSON map.
+  factory GoogleVideoAnalysisRequest.fromJson(Map<String, dynamic> json) {
+    final contents = json['contents'] as List<dynamic>?;
+    return GoogleVideoAnalysisRequest(
+      model: json['model'] as String?,
+      contents: contents != null
+          ? contents
+              .map((c) => GoogleMessage.fromJson(c as Map<String, dynamic>))
+              .toList()
+          : [],
+      systemInstruction: json['systemInstruction'] as Map<String, dynamic>?,
+      generationConfig: json['generationConfig'] as Map<String, dynamic>?,
+    );
+  }
+}
+
+/// Represents a video analysis response in Google Gemini API format.
+///
+/// Similar to GoogleChatResponse but contains video analysis results.
+class GoogleVideoAnalysisResponse {
+  /// List of analysis candidates.
+  final List<GoogleCandidate> candidates;
+
+  /// Usage statistics.
+  final GoogleUsage? usageMetadata;
+
+  /// Model information.
+  final Map<String, dynamic>? model;
+
+  /// Creates a new [GoogleVideoAnalysisResponse] instance.
+  GoogleVideoAnalysisResponse({
+    required this.candidates,
+    this.usageMetadata,
+    this.model,
+  });
+
+  /// Creates a [GoogleVideoAnalysisResponse] from a JSON map.
+  factory GoogleVideoAnalysisResponse.fromJson(Map<String, dynamic> json) {
+    final candidates = json['candidates'] as List<dynamic>?;
+    return GoogleVideoAnalysisResponse(
+      candidates: candidates != null
+          ? candidates
+              .map((c) => GoogleCandidate.fromJson(c as Map<String, dynamic>))
+              .toList()
+          : [],
+      usageMetadata: json['usageMetadata'] != null
+          ? GoogleUsage.fromJson(json['usageMetadata'] as Map<String, dynamic>)
+          : null,
+      model: json['model'] as Map<String, dynamic>?,
+    );
   }
 }

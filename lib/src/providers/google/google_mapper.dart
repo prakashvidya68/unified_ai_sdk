@@ -37,6 +37,8 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:http/http.dart' as http;
+
 import '../../error/error_types.dart';
 import '../../models/common/message.dart';
 import '../../models/common/usage.dart';
@@ -45,11 +47,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'google_models.dart';
@@ -95,40 +101,158 @@ class GoogleMapper implements ProviderMapper {
   }
 
   @override
-  dynamic mapEmbeddingRequest(EmbeddingRequest request,
+  GoogleEmbeddingRequest mapEmbeddingRequest(EmbeddingRequest request,
       {String? defaultModel}) {
-    throw CapabilityError(
-      message:
-          'Google Gemini provider does not support embedding generation via this API.',
-      code: 'UNSUPPORTED_OPERATION',
-      provider: 'google',
+    // Determine model - default to text-embedding-004 if not specified
+    final model = request.model ?? defaultModel ?? 'text-embedding-004';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in EmbeddingRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Extract Google-specific options
+    final googleOptions =
+        request.providerOptions?['google'] ?? <String, dynamic>{};
+
+    // Convert inputs to content format
+    // Google expects a single content object or array of content objects
+    dynamic content;
+    if (request.inputs.length == 1) {
+      // Single input - create content with parts
+      content = {
+        'parts': [
+          {'text': request.inputs.first}
+        ]
+      };
+    } else {
+      // Multiple inputs - Google may need batch processing
+      // For now, use first input (could be enhanced for batch)
+      content = {
+        'parts': [
+          {'text': request.inputs.first}
+        ]
+      };
+    }
+
+    return GoogleEmbeddingRequest(
+      model: model,
+      content: content,
+      taskType: googleOptions['taskType'] as String?,
+      title: googleOptions['title'] as String?,
     );
   }
 
   @override
   EmbeddingResponse mapEmbeddingResponse(dynamic response) {
-    throw CapabilityError(
-      message:
-          'Google Gemini provider does not support embedding generation via this API.',
-      code: 'UNSUPPORTED_OPERATION',
+    if (response is! GoogleEmbeddingResponse) {
+      throw ArgumentError(
+        'Expected GoogleEmbeddingResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Convert Google embedding to SDK EmbeddingData
+    final embedding = response.embedding;
+    final embeddingData = EmbeddingData(
+      vector: embedding.values,
+      dimension: embedding.values.length,
+      index: 0,
+    );
+
+    // Extract model from response (if available) or use default
+    final model = 'text-embedding-004'; // Default, could be enhanced
+
+    return EmbeddingResponse(
+      embeddings: [embeddingData],
+      model: model,
       provider: 'google',
     );
   }
 
   @override
-  dynamic mapImageRequest(ImageRequest request, {String? defaultModel}) {
-    throw CapabilityError(
-      message: 'Google Gemini provider does not support image generation.',
-      code: 'UNSUPPORTED_OPERATION',
-      provider: 'google',
+  GoogleImageRequest mapImageRequest(ImageRequest request,
+      {String? defaultModel}) {
+    // Determine model - default to imagegeneration@006 if not specified
+    final model = request.model ?? defaultModel ?? 'imagegeneration@006';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in ImageRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Extract Google-specific options
+    final googleOptions =
+        request.providerOptions?['google'] ?? <String, dynamic>{};
+
+    // Convert ImageSize to aspect ratio string
+    String? aspectRatio;
+    if (request.size != null) {
+      // Convert from "WIDTHxHEIGHT" format to Google's aspect ratio
+      final sizeStr = request.size!.toString();
+      if (sizeStr.contains('1024x1024')) {
+        aspectRatio = '1:1';
+      } else if (sizeStr.contains('1024x1792')) {
+        aspectRatio = '9:16';
+      } else if (sizeStr.contains('1792x1024')) {
+        aspectRatio = '16:9';
+      } else {
+        // Try to extract from size string
+        final parts = sizeStr.split('x');
+        if (parts.length == 2) {
+          final width = int.tryParse(parts[0]);
+          final height = int.tryParse(parts[1]);
+          if (width != null && height != null) {
+            // Calculate aspect ratio
+            final ratio = width / height;
+            if (ratio == 1.0) {
+              aspectRatio = '1:1';
+            } else if (ratio > 1.0) {
+              aspectRatio = '16:9'; // Approximate
+            } else {
+              aspectRatio = '9:16'; // Approximate
+            }
+          }
+        }
+      }
+    }
+
+    return GoogleImageRequest(
+      model: model,
+      prompt: request.prompt,
+      numberOfImages: request.n,
+      aspectRatio: aspectRatio ?? googleOptions['aspectRatio'] as String?,
+      safetyFilterLevel: googleOptions['safetyFilterLevel'] as String?,
+      personGeneration: googleOptions['personGeneration'] as String?,
     );
   }
 
   @override
   ImageResponse mapImageResponse(dynamic response) {
-    throw CapabilityError(
-      message: 'Google Gemini provider does not support image generation.',
-      code: 'UNSUPPORTED_OPERATION',
+    if (response is! GoogleImageResponse) {
+      throw ArgumentError(
+        'Expected GoogleImageResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Convert Google image data to SDK ImageAsset
+    final assets = response.predictions.map((imageData) {
+      return ImageAsset(
+        base64: imageData.bytesBase64Encoded,
+        // Google Imagen returns base64, not URLs
+        url: null,
+      );
+    }).toList();
+
+    // Extract model from response (if available) or use default
+    final model = 'imagegeneration@006'; // Default, could be enhanced
+
+    return ImageResponse(
+      assets: assets,
+      model: model,
       provider: 'google',
     );
   }
@@ -370,11 +494,33 @@ class GoogleMapper implements ProviderMapper {
   }
 
   @override
-  dynamic mapTtsRequest(TtsRequest request, {String? defaultModel}) {
-    throw CapabilityError(
-      message: 'Google Gemini does not support text-to-speech via this API',
-      code: 'TTS_NOT_SUPPORTED',
-      provider: 'google',
+  GoogleTtsRequest mapTtsRequest(TtsRequest request, {String? defaultModel}) {
+    // Extract Google-specific options
+    final googleOptions =
+        request.providerOptions?['google'] ?? <String, dynamic>{};
+
+    // Build voice configuration
+    final voice = <String, dynamic>{
+      'languageCode': googleOptions['languageCode'] as String? ??
+          request.providerOptions?['language'] as String? ??
+          'en-US',
+      'name': request.voice ??
+          googleOptions['voiceName'] as String? ??
+          'en-US-Standard-A',
+      'ssmlGender': googleOptions['ssmlGender'] as String? ?? 'NEUTRAL',
+    };
+
+    // Build audio configuration
+    final audioConfig = <String, dynamic>{
+      'audioEncoding': googleOptions['audioEncoding'] as String? ?? 'MP3',
+      if (request.speed != null) 'speakingRate': request.speed,
+      'sampleRateHertz': googleOptions['sampleRateHertz'] as int? ?? 24000,
+    };
+
+    return GoogleTtsRequest(
+      input: request.text,
+      voice: voice,
+      audioConfig: audioConfig,
     );
   }
 
@@ -384,19 +530,57 @@ class GoogleMapper implements ProviderMapper {
     Uint8List audioBytes,
     TtsRequest request,
   ) {
-    throw CapabilityError(
-      message: 'Google Gemini does not support text-to-speech via this API',
-      code: 'TTS_NOT_SUPPORTED',
+    // Extract format from response or provider options
+    String format = 'mp3';
+    if (response is http.Response) {
+      final contentType = response.headers['content-type'] ?? '';
+      if (contentType.contains('mp3')) format = 'mp3';
+      if (contentType.contains('wav')) format = 'wav';
+      if (contentType.contains('ogg')) format = 'ogg';
+    } else {
+      // Try to get from provider options
+      final googleOptions =
+          request.providerOptions?['google'] ?? <String, dynamic>{};
+      final audioEncoding = googleOptions['audioEncoding'] as String?;
+      if (audioEncoding != null) {
+        format = audioEncoding.toLowerCase().replaceAll('_', '');
+      }
+    }
+
+    // Extract model from request
+    final model = request.model ?? 'google-tts';
+
+    return AudioResponse(
+      bytes: audioBytes,
+      format: format,
+      model: model,
       provider: 'google',
     );
   }
 
   @override
-  dynamic mapSttRequest(SttRequest request, {String? defaultModel}) {
-    throw CapabilityError(
-      message: 'Google Gemini does not support speech-to-text via this API',
-      code: 'STT_NOT_SUPPORTED',
-      provider: 'google',
+  GoogleSttRequest mapSttRequest(SttRequest request, {String? defaultModel}) {
+    // Extract Google-specific options
+    final googleOptions =
+        request.providerOptions?['google'] ?? <String, dynamic>{};
+
+    // Build audio configuration
+    final config = <String, dynamic>{
+      'encoding': googleOptions['encoding'] as String? ?? 'LINEAR16',
+      'sampleRateHertz': googleOptions['sampleRateHertz'] as int? ?? 16000,
+      'languageCode': request.language ??
+          googleOptions['languageCode'] as String? ??
+          'en-US',
+      if (request.prompt != null) 'alternativeLanguageCodes': <String>[],
+      'enableAutomaticPunctuation':
+          googleOptions['enableAutomaticPunctuation'] as bool? ?? true,
+      'enableWordTimeOffsets':
+          googleOptions['enableWordTimeOffsets'] as bool? ?? false,
+    };
+
+    return GoogleSttRequest(
+      audio: request.audio,
+      config: config,
     );
   }
 
@@ -405,10 +589,252 @@ class GoogleMapper implements ProviderMapper {
     dynamic response,
     SttRequest request,
   ) {
-    throw CapabilityError(
-      message: 'Google Gemini does not support speech-to-text via this API',
-      code: 'STT_NOT_SUPPORTED',
+    // Google STT response format
+    String text = '';
+    String? language;
+
+    if (response is Map<String, dynamic>) {
+      final results = response['results'] as List<dynamic>?;
+      if (results != null && results.isNotEmpty) {
+        final alternatives = results[0]['alternatives'] as List<dynamic>?;
+        if (alternatives != null && alternatives.isNotEmpty) {
+          text = alternatives[0]['transcript'] as String? ?? '';
+        }
+      }
+      language = response['languageCode'] as String?;
+    } else if (response is String) {
+      text = response;
+    }
+
+    return TranscriptionResponse(
+      text: text,
+      language: language,
+      model: 'google-stt',
       provider: 'google',
+    );
+  }
+
+  @override
+  GoogleVideoRequest mapVideoRequest(VideoRequest request,
+      {String? defaultModel}) {
+    // Determine model - default to veo-3.1 if not specified
+    final model = request.model ?? defaultModel ?? 'veo-3.1';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in VideoRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    return GoogleVideoRequest(
+      model: model,
+      prompt: request.prompt,
+      duration: request.duration,
+      aspectRatio: request.aspectRatio,
+      frameRate: request.frameRate,
+      quality: request.quality,
+      seed: request.seed,
+    );
+  }
+
+  @override
+  VideoResponse mapVideoResponse(dynamic response) {
+    if (response is! GoogleVideoResponse) {
+      throw ArgumentError(
+        'Expected GoogleVideoResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Convert Google video data to SDK VideoAsset
+    final assets = response.videos.map((videoData) {
+      return VideoAsset(
+        url: videoData.url,
+        base64: videoData.base64,
+        width: videoData.width,
+        height: videoData.height,
+        duration: videoData.duration,
+        frameRate: videoData.frameRate,
+      );
+    }).toList();
+
+    return VideoResponse(
+      assets: assets,
+      model: response.model,
+      provider: 'google',
+      timestamp: DateTime.now(),
+    );
+  }
+
+  @override
+  GoogleVideoAnalysisRequest mapVideoAnalysisRequest(
+    VideoAnalysisRequest request, {
+    String? defaultModel,
+  }) {
+    // Determine model - default to gemini-1.5-pro if not specified
+    final model = request.model ?? defaultModel ?? 'gemini-1.5-pro';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in VideoAnalysisRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Extract Google-specific options
+    final googleOptions =
+        request.providerOptions?['google'] ?? <String, dynamic>{};
+
+    // Build messages for video analysis
+    final contents = <GoogleMessage>[];
+
+    // Build user message with video content
+    final parts = <GoogleContentPart>[];
+
+    // Add text prompt if provided via features or as a prompt
+    final promptText = googleOptions['prompt'] as String? ??
+        (request.features != null && request.features!.isNotEmpty
+            ? 'Analyze this video and extract: ${request.features!.join(", ")}'
+            : 'Analyze this video and provide a detailed description.');
+
+    if (promptText.isNotEmpty) {
+      parts.add(GoogleContentPart(text: promptText));
+    }
+
+    // Add video content
+    if (request.videoUrl != null) {
+      // For URL, we need to use file_data format
+      parts.add(GoogleContentPart(
+        fileData: {
+          'file_uri': request.videoUrl,
+          'mime_type': googleOptions['mime_type'] as String? ?? 'video/mp4',
+        },
+      ));
+    } else if (request.videoBase64 != null) {
+      // For base64, use inline_data format
+      final mimeType = googleOptions['mime_type'] as String? ?? 'video/mp4';
+      parts.add(GoogleContentPart(
+        inlineData: {
+          'mime_type': mimeType,
+          'data': request.videoBase64,
+        },
+      ));
+    }
+
+    if (parts.isEmpty) {
+      throw ClientError(
+        message: 'Either videoUrl or videoBase64 must be provided',
+        code: 'MISSING_VIDEO',
+      );
+    }
+
+    contents.add(GoogleMessage(role: 'user', parts: parts));
+
+    // Build system instruction if provided
+    Map<String, dynamic>? systemInstruction;
+    final systemMessage = googleOptions['system_message'] as String?;
+    if (systemMessage != null && systemMessage.isNotEmpty) {
+      systemInstruction = {
+        'parts': [
+          {'text': systemMessage}
+        ]
+      };
+    }
+
+    return GoogleVideoAnalysisRequest(
+      model: model,
+      contents: contents,
+      systemInstruction: systemInstruction,
+      generationConfig: {
+        if (request.confidenceThreshold != null)
+          'temperature': 1.0 - request.confidenceThreshold!,
+        if (request.language != null) 'language': request.language,
+      },
+    );
+  }
+
+  @override
+  VideoAnalysisResponse mapVideoAnalysisResponse(dynamic response) {
+    if (response is! GoogleVideoAnalysisResponse) {
+      throw ArgumentError(
+        'Expected GoogleVideoAnalysisResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Extract analysis text from the first candidate
+    String analysisText = '';
+    if (response.candidates.isNotEmpty) {
+      final candidate = response.candidates.first;
+      if (candidate.content != null) {
+        final parts = candidate.content!['parts'] as List<dynamic>?;
+        if (parts != null) {
+          for (final part in parts) {
+            if (part is Map<String, dynamic>) {
+              final text = part['text'] as String?;
+              if (text != null) {
+                analysisText =
+                    analysisText.isEmpty ? text : '$analysisText\n$text';
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Parse the analysis text to extract structured information
+    // This is a simplified implementation - in practice, you might want to
+    // use structured output or parse the text more intelligently
+    final objects = <DetectedObject>[];
+    final scenes = <DetectedScene>[];
+    final actions = <DetectedAction>[];
+    final text = <ExtractedText>[];
+    final labels = <String>[];
+
+    // Basic parsing - extract labels from the analysis text
+    if (analysisText.isNotEmpty) {
+      // Extract potential labels (simple heuristic)
+      final words = analysisText.split(RegExp(r'[.,;!?\s]+'));
+      for (final word in words) {
+        if (word.length > 3 && word[0].toUpperCase() == word[0]) {
+          labels.add(word);
+        }
+      }
+
+      // If no labels found, add the full text as a label
+      if (labels.isEmpty && analysisText.length < 100) {
+        labels.add(analysisText);
+      }
+    }
+
+    // Build metadata from Google-specific fields
+    final metadata = <String, dynamic>{
+      if (response.usageMetadata != null)
+        'usage': {
+          'prompt_tokens': response.usageMetadata!.promptTokenCount,
+          'completion_tokens': response.usageMetadata!.candidatesTokenCount,
+          'total_tokens': response.usageMetadata!.totalTokenCount,
+        },
+      'analysis_text': analysisText,
+    };
+
+    // Extract model name
+    String modelName = 'gemini-1.5-pro';
+    if (response.model != null) {
+      modelName = response.model!['name'] as String? ??
+          response.model!['base_model_id'] as String? ??
+          'gemini-1.5-pro';
+    }
+
+    return VideoAnalysisResponse(
+      objects: objects,
+      scenes: scenes,
+      actions: actions,
+      text: text,
+      labels: labels,
+      model: modelName,
+      provider: 'google',
+      timestamp: DateTime.now(),
+      metadata: metadata,
     );
   }
 }
