@@ -12,12 +12,16 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/chat_stream_event.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
@@ -88,6 +92,7 @@ class MistralProvider extends AiProvider {
     'mistral-small-latest',
     'codestral-latest',
     'pixtral-latest',
+    'pixtral-12b-2409', // Video analysis model
     'mistral-embed',
     'voxtral-mini-transcribe',
   ];
@@ -107,8 +112,13 @@ class MistralProvider extends AiProvider {
       supportsChat: true,
       supportsEmbedding: true,
       supportsImageGeneration: false,
-      supportsTTS: false,
+      supportsTTS:
+          false, // TTS capability mentioned in table but API endpoint unclear - needs verification
       supportsSTT: true,
+      supportsVideoGeneration:
+          false, // Mistral doesn't support video generation
+      supportsVideoAnalysis:
+          true, // Pixtral 12B supports video analysis via multimodal input
       supportsStreaming: true,
       fallbackModels: _fallbackModels,
       dynamicModels:
@@ -442,6 +452,48 @@ class MistralProvider extends AiProvider {
       mistralResponse,
       request,
     );
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    // Mistral doesn't support video generation
+    throw CapabilityError(
+      message: 'Mistral AI does not support video generation',
+      code: 'VIDEO_GENERATION_NOT_SUPPORTED',
+      provider: id,
+    );
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(
+      VideoAnalysisRequest request) async {
+    // Validate that video analysis is supported
+    validateCapability('videoAnalysis');
+
+    // Mistral video analysis uses Pixtral's multimodal capabilities via chat completions
+    // We'll use the chat API with video content in messages
+    final mistralRequest = _mapper.mapVideoAnalysisRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as MistralChatRequest;
+
+    // Make HTTP POST request to chat/completions endpoint
+    final response = await _http.post(
+      '$_baseUrl/chat/completions',
+      body: jsonEncode(mistralRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final mistralResponse = MistralChatResponse.fromJson(responseJson);
+
+    // Map Mistral response to SDK format
+    return _mapper.mapVideoAnalysisResponse(mistralResponse);
   }
 
   /// Gets the default model for this provider.

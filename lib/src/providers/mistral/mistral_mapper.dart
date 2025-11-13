@@ -15,11 +15,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'mistral_models.dart';
@@ -307,6 +311,7 @@ class MistralMapper implements ProviderMapper {
   }
 
   /// Maps SDK [SttRequest] to Mistral STT request format.
+  @override
   MistralSttRequest mapSttRequest(SttRequest request, {String? defaultModel}) {
     final model = request.model ?? defaultModel ?? 'voxtral-mini-transcribe';
 
@@ -359,6 +364,180 @@ class MistralMapper implements ProviderMapper {
       message: 'Mistral AI does not support text-to-speech',
       code: 'TTS_NOT_SUPPORTED',
       provider: 'mistral',
+    );
+  }
+
+  @override
+  dynamic mapVideoRequest(VideoRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Mistral AI does not support video generation',
+      code: 'VIDEO_GENERATION_NOT_SUPPORTED',
+      provider: 'mistral',
+    );
+  }
+
+  @override
+  VideoResponse mapVideoResponse(dynamic response) {
+    throw CapabilityError(
+      message: 'Mistral AI does not support video generation',
+      code: 'VIDEO_GENERATION_NOT_SUPPORTED',
+      provider: 'mistral',
+    );
+  }
+
+  @override
+  MistralChatRequest mapVideoAnalysisRequest(
+    VideoAnalysisRequest request, {
+    String? defaultModel,
+  }) {
+    // Determine model - default to pixtral-latest or pixtral-12b-2409 if not specified
+    final model = request.model ?? defaultModel ?? 'pixtral-latest';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in VideoAnalysisRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Extract Mistral-specific options
+    final mistralOptions =
+        request.providerOptions?['mistral'] ?? <String, dynamic>{};
+
+    // Build messages for video analysis
+    // Mistral uses chat completions with video content in messages (similar to OpenAI)
+    final messages = <Map<String, dynamic>>[];
+
+    // Build user message with video content
+    final content = <Map<String, dynamic>>[];
+
+    // Add text prompt if provided via features or as a prompt
+    final promptText = mistralOptions['prompt'] as String? ??
+        (request.features != null && request.features!.isNotEmpty
+            ? 'Analyze this video and extract: ${request.features!.join(", ")}'
+            : 'Analyze this video and provide a detailed description.');
+
+    if (promptText.isNotEmpty) {
+      content.add({
+        'type': 'text',
+        'text': promptText,
+      });
+    }
+
+    // Add video content
+    if (request.videoUrl != null) {
+      content.add({
+        'type': 'video_url',
+        'video_url': {
+          'url': request.videoUrl,
+        },
+      });
+    } else if (request.videoBase64 != null) {
+      // For base64, we need to format it as data URL
+      final mimeType = mistralOptions['mime_type'] as String? ?? 'video/mp4';
+      content.add({
+        'type': 'video_url',
+        'video_url': {
+          'url': 'data:$mimeType;base64,${request.videoBase64}',
+        },
+      });
+    }
+
+    if (content.isEmpty) {
+      throw ClientError(
+        message: 'Either videoUrl or videoBase64 must be provided',
+        code: 'MISSING_VIDEO',
+      );
+    }
+
+    messages.add({
+      'role': 'user',
+      'content': content,
+    });
+
+    // Build Mistral request (similar to chat request but with video content)
+    return MistralChatRequest(
+      model: model,
+      messages: messages,
+      temperature: request.confidenceThreshold != null
+          ? 1.0 - request.confidenceThreshold!
+          : (mistralOptions['temperature'] as double?),
+      maxTokens: mistralOptions['max_tokens'] as int? ??
+          mistralOptions['maxTokens'] as int?,
+      topP: mistralOptions['top_p'] as double? ??
+          mistralOptions['topP'] as double?,
+      user: mistralOptions['user'] as String?,
+      randomSeed: mistralOptions['random_seed'] as int?,
+    );
+  }
+
+  @override
+  VideoAnalysisResponse mapVideoAnalysisResponse(dynamic response) {
+    if (response is! MistralChatResponse) {
+      throw ArgumentError(
+        'Expected MistralChatResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Extract analysis text from the first choice
+    String analysisText = '';
+    if (response.choices.isNotEmpty) {
+      final firstChoice = response.choices.first;
+      final message = firstChoice.message;
+      final content = message['content'] as String?;
+      if (content != null) {
+        analysisText = content;
+      }
+    }
+
+    // Parse the analysis text to extract structured information
+    // This is a simplified implementation - in practice, you might want to
+    // use structured output or parse the text more intelligently
+    final objects = <DetectedObject>[];
+    final scenes = <DetectedScene>[];
+    final actions = <DetectedAction>[];
+    final text = <ExtractedText>[];
+    final labels = <String>[];
+
+    // Basic parsing - extract labels from the analysis text
+    if (analysisText.isNotEmpty) {
+      // Extract potential labels (simple heuristic)
+      final words = analysisText.split(RegExp(r'[.,;!?\s]+'));
+      for (final word in words) {
+        if (word.length > 3 && word[0].toUpperCase() == word[0]) {
+          labels.add(word);
+        }
+      }
+
+      // If no labels found, add the full text as a label
+      if (labels.isEmpty && analysisText.length < 100) {
+        labels.add(analysisText);
+      }
+    }
+
+    // Build metadata from Mistral-specific fields
+    final metadata = <String, dynamic>{
+      'id': response.id,
+      'object': response.object,
+      'created': response.created,
+      'analysis_text': analysisText,
+      'usage': {
+        'prompt_tokens': response.usage.promptTokens,
+        'completion_tokens': response.usage.completionTokens,
+        'total_tokens': response.usage.totalTokens,
+      },
+    };
+
+    return VideoAnalysisResponse(
+      objects: objects,
+      scenes: scenes,
+      actions: actions,
+      text: text,
+      labels: labels,
+      model: response.model,
+      provider: 'mistral',
+      timestamp: DateTime.fromMillisecondsSinceEpoch(response.created * 1000),
+      metadata: metadata,
     );
   }
 }
