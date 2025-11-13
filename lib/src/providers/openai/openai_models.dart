@@ -1075,3 +1075,357 @@ class OpenAISttRequest {
     return 'OpenAISttRequest(model: $model, audio: ${audio.length} bytes${language != null ? ", language: $language" : ""})';
   }
 }
+
+/// Represents a video generation request in OpenAI's API format.
+///
+/// This model matches the structure expected by OpenAI's `/v1/videos/generations`
+/// endpoint for Sora video generation.
+///
+/// **OpenAI API Reference:**
+/// https://platform.openai.com/docs/api-reference/videos/create
+class OpenAIVideoRequest {
+  /// The text prompt describing the video to generate.
+  ///
+  /// Required. The prompt must be specific and descriptive for best results.
+  final String prompt;
+
+  /// The model to use for video generation.
+  ///
+  /// Examples: "sora-2", "sora-1.5", "sora-1.0", "sora-1.0-turbo"
+  /// Defaults to "sora-2" if not specified.
+  final String? model;
+
+  /// The duration of the video in seconds.
+  ///
+  /// Typical range: 5-60 seconds. Defaults to provider-specific default.
+  final int? duration;
+
+  /// The aspect ratio for the generated video.
+  ///
+  /// Common values: "16:9", "9:16", "1:1", "4:3", "21:9"
+  /// Defaults to provider-specific default if not specified.
+  final String? aspectRatio;
+
+  /// The frame rate for the generated video (fps).
+  ///
+  /// Common values: 24, 30, 60
+  /// Defaults to provider-specific default if not specified.
+  final int? frameRate;
+
+  /// The quality setting for the generated video.
+  ///
+  /// Options: "standard", "hd", "4k"
+  /// Defaults to "standard" if not specified.
+  final String? quality;
+
+  /// Optional seed for reproducible video generation.
+  final int? seed;
+
+  /// A unique identifier representing your end-user.
+  ///
+  /// Can help OpenAI monitor and detect abuse.
+  final String? user;
+
+  /// Creates a new [OpenAIVideoRequest] instance.
+  ///
+  /// [prompt] is required and must not be empty.
+  OpenAIVideoRequest({
+    required this.prompt,
+    this.model,
+    this.duration,
+    this.aspectRatio,
+    this.frameRate,
+    this.quality,
+    this.seed,
+    this.user,
+  }) : assert(prompt.isNotEmpty, 'prompt must not be empty');
+
+  /// Converts this request to a JSON map matching OpenAI's API format.
+  Map<String, dynamic> toJson() {
+    return {
+      'prompt': prompt,
+      if (model != null) 'model': model,
+      if (duration != null) 'duration': duration,
+      if (aspectRatio != null) 'aspect_ratio': aspectRatio,
+      if (frameRate != null) 'frame_rate': frameRate,
+      if (quality != null) 'quality': quality,
+      if (seed != null) 'seed': seed,
+      if (user != null) 'user': user,
+    };
+  }
+
+  /// Creates an [OpenAIVideoRequest] from a JSON map.
+  factory OpenAIVideoRequest.fromJson(Map<String, dynamic> json) {
+    return OpenAIVideoRequest(
+      prompt: json['prompt'] as String,
+      model: json['model'] as String?,
+      duration: json['duration'] as int?,
+      aspectRatio:
+          json['aspect_ratio'] as String? ?? json['aspectRatio'] as String?,
+      frameRate: json['frame_rate'] as int? ?? json['frameRate'] as int?,
+      quality: json['quality'] as String?,
+      seed: json['seed'] as int?,
+      user: json['user'] as String?,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIVideoRequest(prompt: ${prompt.length > 50 ? "${prompt.substring(0, 50)}..." : prompt}, model: ${model ?? "sora-2"})';
+  }
+}
+
+/// Represents a video generation response in OpenAI's API format.
+///
+/// This model matches the structure returned by OpenAI's `/v1/videos/generations`
+/// endpoint.
+class OpenAIVideoResponse {
+  /// Unique identifier for the video generation.
+  final String id;
+
+  /// The model used for video generation.
+  final String model;
+
+  /// List of generated video data.
+  final List<OpenAIVideoData> data;
+
+  /// Timestamp when the video was created.
+  ///
+  /// Unix timestamp in seconds.
+  final int created;
+
+  /// Creates a new [OpenAIVideoResponse] instance.
+  OpenAIVideoResponse({
+    required this.id,
+    required this.model,
+    required this.data,
+    required this.created,
+  });
+
+  /// Creates an [OpenAIVideoResponse] from a JSON map.
+  factory OpenAIVideoResponse.fromJson(Map<String, dynamic> json) {
+    return OpenAIVideoResponse(
+      id: json['id'] as String,
+      model: json['model'] as String,
+      data: (json['data'] as List)
+          .map((e) => OpenAIVideoData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      created: json['created'] as int,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'model': model,
+      'data': data.map((e) => e.toJson()).toList(),
+      'created': created,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIVideoResponse(id: $id, model: $model, videos: ${data.length})';
+  }
+}
+
+/// Represents a single generated video in OpenAI's format.
+class OpenAIVideoData {
+  /// URL of the generated video.
+  ///
+  /// The URL is temporary and expires after a certain period.
+  final String? url;
+
+  /// Base64-encoded video data.
+  ///
+  /// Present when response_format is "b64_json".
+  final String? base64;
+
+  /// Optional width of the generated video in pixels.
+  final int? width;
+
+  /// Optional height of the generated video in pixels.
+  final int? height;
+
+  /// Optional duration of the video in seconds.
+  final int? duration;
+
+  /// Optional frame rate of the video (fps).
+  final int? frameRate;
+
+  /// Optional revised prompt used for video generation.
+  final String? revisedPrompt;
+
+  /// Creates a new [OpenAIVideoData] instance.
+  OpenAIVideoData({
+    this.url,
+    this.base64,
+    this.width,
+    this.height,
+    this.duration,
+    this.frameRate,
+    this.revisedPrompt,
+  });
+
+  /// Creates an [OpenAIVideoData] from a JSON map.
+  factory OpenAIVideoData.fromJson(Map<String, dynamic> json) {
+    return OpenAIVideoData(
+      url: json['url'] as String?,
+      base64: json['base64'] as String? ?? json['b64_json'] as String?,
+      width: json['width'] as int?,
+      height: json['height'] as int?,
+      duration: json['duration'] as int?,
+      frameRate: json['frame_rate'] as int? ?? json['frameRate'] as int?,
+      revisedPrompt:
+          json['revised_prompt'] as String? ?? json['revisedPrompt'] as String?,
+    );
+  }
+
+  /// Converts this video data to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (url != null) 'url': url,
+      if (base64 != null) 'base64': base64,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (duration != null) 'duration': duration,
+      if (frameRate != null) 'frame_rate': frameRate,
+      if (revisedPrompt != null) 'revised_prompt': revisedPrompt,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIVideoData(url: ${url != null ? "..." : null}, base64: ${base64 != null ? "..." : null})';
+  }
+}
+
+/// Represents a video analysis request in OpenAI's API format.
+///
+/// This model matches the structure expected by OpenAI's `/v1/chat/completions`
+/// endpoint when using GPT-5 or GPT-4o Vision for video analysis. Video analysis is
+/// performed by sending video frames or video URLs to the vision model.
+class OpenAIVideoAnalysisRequest {
+  /// The model to use for video analysis.
+  ///
+  /// Examples: "gpt-5", "gpt-4o", "gpt-4o-mini"
+  /// Defaults to "gpt-4o" if not specified.
+  /// Note: GPT-5 and GPT-4o support video analysis via vision capabilities.
+  final String? model;
+
+  /// List of messages comprising the conversation.
+  ///
+  /// Messages can include video content via content blocks with type "image_url"
+  /// or "video_url".
+  final List<Map<String, dynamic>> messages;
+
+  /// Optional maximum number of tokens to generate.
+  final int? maxTokens;
+
+  /// Optional temperature for generation.
+  final double? temperature;
+
+  /// A unique identifier representing your end-user.
+  final String? user;
+
+  /// Creates a new [OpenAIVideoAnalysisRequest] instance.
+  ///
+  /// [messages] is required and must not be empty.
+  OpenAIVideoAnalysisRequest({
+    this.model,
+    required this.messages,
+    this.maxTokens,
+    this.temperature,
+    this.user,
+  }) : assert(messages.isNotEmpty, 'messages must not be empty');
+
+  /// Converts this request to a JSON map matching OpenAI's API format.
+  Map<String, dynamic> toJson() {
+    return {
+      if (model != null) 'model': model,
+      'messages': messages,
+      if (maxTokens != null) 'max_tokens': maxTokens,
+      if (temperature != null) 'temperature': temperature,
+      if (user != null) 'user': user,
+    };
+  }
+
+  /// Creates an [OpenAIVideoAnalysisRequest] from a JSON map.
+  factory OpenAIVideoAnalysisRequest.fromJson(Map<String, dynamic> json) {
+    return OpenAIVideoAnalysisRequest(
+      model: json['model'] as String?,
+      messages: List<Map<String, dynamic>>.from(json['messages'] as List),
+      maxTokens: json['max_tokens'] as int?,
+      temperature: (json['temperature'] as num?)?.toDouble(),
+      user: json['user'] as String?,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIVideoAnalysisRequest(model: ${model ?? "gpt-4o"}, messages: ${messages.length})';
+  }
+}
+
+/// Represents a video analysis response in OpenAI's API format.
+///
+/// This model matches the structure returned by OpenAI's `/v1/chat/completions`
+/// endpoint when analyzing videos. The response is similar to a chat completion
+/// but contains analysis of the video content.
+class OpenAIVideoAnalysisResponse {
+  /// Unique identifier for the analysis.
+  final String id;
+
+  /// The model used for analysis.
+  final String model;
+
+  /// List of analysis choices.
+  final List<Map<String, dynamic>> choices;
+
+  /// Usage statistics for the analysis request.
+  final OpenAIUsage? usage;
+
+  /// Timestamp when the analysis was created.
+  ///
+  /// Unix timestamp in seconds.
+  final int created;
+
+  /// Creates a new [OpenAIVideoAnalysisResponse] instance.
+  OpenAIVideoAnalysisResponse({
+    required this.id,
+    required this.model,
+    required this.choices,
+    this.usage,
+    required this.created,
+  });
+
+  /// Creates an [OpenAIVideoAnalysisResponse] from a JSON map.
+  factory OpenAIVideoAnalysisResponse.fromJson(Map<String, dynamic> json) {
+    return OpenAIVideoAnalysisResponse(
+      id: json['id'] as String,
+      model: json['model'] as String,
+      choices: List<Map<String, dynamic>>.from(json['choices'] as List),
+      usage: json['usage'] != null
+          ? OpenAIUsage.fromJson(json['usage'] as Map<String, dynamic>)
+          : null,
+      created: json['created'] as int,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'model': model,
+      'choices': choices,
+      if (usage != null) 'usage': usage!.toJson(),
+      'created': created,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIVideoAnalysisResponse(id: $id, model: $model, choices: ${choices.length})';
+  }
+}

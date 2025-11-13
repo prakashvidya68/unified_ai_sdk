@@ -37,11 +37,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'openai_models.dart';
@@ -563,6 +567,219 @@ class OpenAIMapper implements ProviderMapper {
       language: language,
       model: model,
       provider: 'openai',
+    );
+  }
+
+  @override
+  OpenAIVideoRequest mapVideoRequest(VideoRequest request,
+      {String? defaultModel}) {
+    // Determine model - default to sora-2 (latest) if not specified
+    final model = request.model ?? defaultModel ?? 'sora-2';
+
+    // Extract OpenAI-specific options
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+
+    return OpenAIVideoRequest(
+      prompt: request.prompt,
+      model: model,
+      duration: request.duration,
+      aspectRatio: request.aspectRatio,
+      frameRate: request.frameRate,
+      quality: request.quality,
+      seed: request.seed,
+      user: openaiOptions['user'] as String?,
+    );
+  }
+
+  @override
+  VideoResponse mapVideoResponse(dynamic response) {
+    if (response is! OpenAIVideoResponse) {
+      throw ArgumentError(
+        'Expected OpenAIVideoResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Convert OpenAI video data to SDK VideoAsset
+    final assets = response.data.map((videoData) {
+      return VideoAsset(
+        url: videoData.url,
+        base64: videoData.base64,
+        width: videoData.width,
+        height: videoData.height,
+        duration: videoData.duration,
+        frameRate: videoData.frameRate,
+        revisedPrompt: videoData.revisedPrompt,
+      );
+    }).toList();
+
+    // Convert timestamp from Unix seconds to DateTime
+    final timestamp =
+        DateTime.fromMillisecondsSinceEpoch(response.created * 1000);
+
+    // Build metadata from OpenAI-specific fields
+    final metadata = <String, dynamic>{
+      'id': response.id,
+      'created': response.created,
+    };
+
+    return VideoResponse(
+      assets: assets,
+      model: response.model,
+      provider: 'openai',
+      timestamp: timestamp,
+      metadata: metadata,
+    );
+  }
+
+  @override
+  OpenAIVideoAnalysisRequest mapVideoAnalysisRequest(
+    VideoAnalysisRequest request, {
+    String? defaultModel,
+  }) {
+    // Determine model - default to gpt-4o if not specified
+    final model = request.model ?? defaultModel ?? 'gpt-4o';
+
+    // Extract OpenAI-specific options
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+
+    // Build messages for video analysis
+    // OpenAI uses chat completions with video content in messages
+    final messages = <Map<String, dynamic>>[];
+
+    // Add system message if needed (optional)
+    final systemMessage = openaiOptions['system_message'] as String?;
+    if (systemMessage != null && systemMessage.isNotEmpty) {
+      messages.add({
+        'role': 'system',
+        'content': systemMessage,
+      });
+    }
+
+    // Build user message with video content
+    final content = <Map<String, dynamic>>[];
+
+    // Add text prompt if provided via features or as a prompt
+    final promptText = openaiOptions['prompt'] as String? ??
+        (request.features != null && request.features!.isNotEmpty
+            ? 'Analyze this video and extract: ${request.features!.join(", ")}'
+            : 'Analyze this video and provide a detailed description.');
+
+    if (promptText.isNotEmpty) {
+      content.add({
+        'type': 'text',
+        'text': promptText,
+      });
+    }
+
+    // Add video content
+    if (request.videoUrl != null) {
+      content.add({
+        'type': 'video_url',
+        'video_url': {
+          'url': request.videoUrl,
+        },
+      });
+    } else if (request.videoBase64 != null) {
+      // For base64, we need to format it as data URL
+      final mimeType = openaiOptions['mime_type'] as String? ?? 'video/mp4';
+      content.add({
+        'type': 'video_url',
+        'video_url': {
+          'url': 'data:$mimeType;base64,${request.videoBase64}',
+        },
+      });
+    }
+
+    messages.add({
+      'role': 'user',
+      'content': content,
+    });
+
+    return OpenAIVideoAnalysisRequest(
+      model: model,
+      messages: messages,
+      maxTokens: openaiOptions['max_tokens'] as int? ??
+          openaiOptions['maxTokens'] as int?,
+      temperature: request.confidenceThreshold != null
+          ? 1.0 - request.confidenceThreshold!
+          : (openaiOptions['temperature'] as double?),
+      user: openaiOptions['user'] as String?,
+    );
+  }
+
+  @override
+  VideoAnalysisResponse mapVideoAnalysisResponse(dynamic response) {
+    if (response is! OpenAIVideoAnalysisResponse) {
+      throw ArgumentError(
+        'Expected OpenAIVideoAnalysisResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Extract analysis text from the first choice
+    String analysisText = '';
+    if (response.choices.isNotEmpty) {
+      final firstChoice = response.choices.first;
+      final message = firstChoice['message'] as Map<String, dynamic>?;
+      if (message != null) {
+        final content = message['content'] as String?;
+        if (content != null) {
+          analysisText = content;
+        }
+      }
+    }
+
+    // Parse the analysis text to extract structured information
+    // This is a simplified implementation - in practice, you might want to
+    // use structured output or parse the text more intelligently
+    final objects = <DetectedObject>[];
+    final scenes = <DetectedScene>[];
+    final actions = <DetectedAction>[];
+    final text = <ExtractedText>[];
+    final labels = <String>[];
+
+    // Basic parsing - extract labels from the analysis text
+    // In a real implementation, you might use structured output or prompt engineering
+    // to get more structured data
+    if (analysisText.isNotEmpty) {
+      // Extract potential labels (simple heuristic - look for capitalized phrases)
+      final words = analysisText.split(RegExp(r'[.,;!?\s]+'));
+      for (final word in words) {
+        if (word.length > 3 && word[0].toUpperCase() == word[0]) {
+          labels.add(word);
+        }
+      }
+
+      // If no labels found, add the full text as a label
+      if (labels.isEmpty && analysisText.length < 100) {
+        labels.add(analysisText);
+      }
+    }
+
+    // Build metadata from OpenAI-specific fields
+    final metadata = <String, dynamic>{
+      'id': response.id,
+      'created': response.created,
+      'analysis_text': analysisText,
+      if (response.usage != null)
+        'usage': {
+          'prompt_tokens': response.usage!.promptTokens,
+          'completion_tokens': response.usage!.completionTokens,
+          'total_tokens': response.usage!.totalTokens,
+        },
+    };
+
+    return VideoAnalysisResponse(
+      objects: objects,
+      scenes: scenes,
+      actions: actions,
+      text: text,
+      labels: labels,
+      model: response.model,
+      provider: 'openai',
+      timestamp: DateTime.fromMillisecondsSinceEpoch(response.created * 1000),
+      metadata: metadata,
     );
   }
 }

@@ -12,12 +12,16 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/chat_stream_event.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
@@ -30,11 +34,13 @@ import 'openai_models.dart';
 /// OpenAI provider implementation for the Unified AI SDK.
 ///
 /// This provider integrates with OpenAI's API to provide:
-/// - Chat completions (GPT-4, GPT-3.5-turbo, etc.)
-/// - Text embeddings (text-embedding-3-small, text-embedding-ada-002)
-/// - Image generation (DALL-E 3)
-/// - Text-to-speech (TTS)
-/// - Speech-to-text (Whisper)
+/// - Chat completions (GPT-5, GPT-4o, GPT-4, GPT-3.5-turbo, o1 series, etc.)
+/// - Text embeddings (text-embedding-3-large, text-embedding-3-small, text-embedding-ada-002)
+/// - Image generation (DALL-E 3, DALL-E 2)
+/// - Video generation (Sora-2, Sora-1.5, Sora-1.0)
+/// - Video analysis (GPT-5, GPT-4o Vision)
+/// - Text-to-speech (TTS-1, TTS-1-HD)
+/// - Speech-to-text (Whisper-1)
 /// - Streaming support for chat completions
 ///
 /// **Example usage:**
@@ -43,7 +49,7 @@ import 'openai_models.dart';
 ///   id: 'openai',
 ///   auth: ApiKeyAuth(apiKey: 'sk-...'),
 ///   settings: {
-///     'defaultModel': 'gpt-4',
+///     'defaultModel': 'gpt-5', // or 'gpt-4o' for latest GPT-4
 ///   },
 /// );
 ///
@@ -81,22 +87,44 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
   ///
   /// These models are always available as a backup, ensuring the SDK works
   /// even when the API is unreachable or the models endpoint fails.
+  ///
+  /// **Latest Models (2024-2025):**
+  /// - GPT-5: Latest generation language model with advanced reasoning
+  /// - GPT-4o series: Latest GPT-4 models with multimodal capabilities
+  /// - Sora-2: Latest video generation model
+  /// - o1 series: Reasoning-optimized models
   static const List<String> _fallbackModels = [
+    // Latest GPT models
+    'gpt-5',
+    'gpt-5-turbo',
+    'gpt-4o-2024-11-20',
+    'gpt-4o-2024-08-06',
     'gpt-4o',
     'gpt-4o-mini',
     'gpt-4-turbo',
     'gpt-4',
     'gpt-4-32k',
+    // Reasoning models (o1 series)
+    'o1-mini',
+    // GPT-3.5 models
     'gpt-3.5-turbo',
     'gpt-3.5-turbo-16k',
+    // Embedding models
     'text-embedding-3-large',
     'text-embedding-3-small',
     'text-embedding-ada-002',
+    // Image generation models
     'dall-e-3',
     'dall-e-2',
+    // Audio models
     'tts-1',
     'tts-1-hd',
     'whisper-1',
+    // Video generation models
+    'sora-2',
+    'sora-1.5',
+    'sora-1.0',
+    'sora-1.0-turbo',
   ];
 
   /// Cached capabilities instance (created once, updated when models are fetched).
@@ -116,6 +144,8 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
       supportsImageGeneration: true,
       supportsTTS: true,
       supportsSTT: true,
+      supportsVideoGeneration: true,
+      supportsVideoAnalysis: true,
       supportsStreaming: true,
       fallbackModels: _fallbackModels,
       dynamicModels: true, // Enable dynamic model fetching
@@ -231,11 +261,22 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
   @override
   String inferModelType(String modelId) {
     final lowerId = modelId.toLowerCase();
-    if (lowerId.startsWith('gpt')) return 'text';
+    // Chat/text models
+    if (lowerId.startsWith('gpt-') ||
+        lowerId.startsWith('o1-') ||
+        lowerId == 'gpt-5' ||
+        lowerId == 'gpt-5-turbo') {
+      return 'text';
+    }
+    // Embedding models
     if (lowerId.contains('embedding')) return 'embedding';
+    // Image generation models
     if (lowerId.startsWith('dall-e')) return 'image';
+    // Audio models
     if (lowerId.startsWith('tts-')) return 'tts';
     if (lowerId.startsWith('whisper-')) return 'stt';
+    // Video generation models
+    if (lowerId.startsWith('sora-')) return 'video';
     return 'other';
   }
 
@@ -272,10 +313,14 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     // Include known model prefixes
     final lowerId = modelId.toLowerCase();
     return lowerId.startsWith('gpt-') ||
+        lowerId == 'gpt-5' ||
+        lowerId == 'gpt-5-turbo' ||
+        lowerId.startsWith('o1-') ||
         lowerId.startsWith('text-embedding-') ||
         lowerId.startsWith('dall-e-') ||
         lowerId.startsWith('tts-') ||
-        lowerId.startsWith('whisper-');
+        lowerId.startsWith('whisper-') ||
+        lowerId.startsWith('sora-');
   }
 
   @override
@@ -621,6 +666,67 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
     // Map OpenAI response to SDK format
     return _mapper.mapSttResponse(parsedResponse, request);
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    // Validate that video generation is supported
+    validateCapability('video');
+
+    // Map SDK request to OpenAI format
+    final openaiRequest = _mapper.mapVideoRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as OpenAIVideoRequest;
+
+    // Make HTTP POST request to videos/generations endpoint
+    final response = await _http.post(
+      '$_baseUrl/videos/generations',
+      body: jsonEncode(openaiRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final openaiResponse = OpenAIVideoResponse.fromJson(responseJson);
+
+    // Map OpenAI response to SDK format
+    return _mapper.mapVideoResponse(openaiResponse);
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(
+      VideoAnalysisRequest request) async {
+    // Validate that video analysis is supported
+    validateCapability('videoAnalysis');
+
+    // Map SDK request to OpenAI format
+    final openaiRequest = _mapper.mapVideoAnalysisRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as OpenAIVideoAnalysisRequest;
+
+    // Make HTTP POST request to chat/completions endpoint (GPT-4o Vision)
+    final response = await _http.post(
+      '$_baseUrl/chat/completions',
+      body: jsonEncode(openaiRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final openaiResponse = OpenAIVideoAnalysisResponse.fromJson(responseJson);
+
+    // Map OpenAI response to SDK format
+    return _mapper.mapVideoAnalysisResponse(openaiResponse);
   }
 
   /// Gets the default model for this provider.
