@@ -239,7 +239,7 @@ void main() {
 
         final json = request.toJson();
 
-        expect(json['messages'], isA<List>());
+        expect(json['messages'], isA<List<dynamic>>());
         expect(json['model'], equals('gpt-4'));
         expect(json['max_tokens'], equals(500));
         expect(json['temperature'], equals(0.7));
@@ -271,7 +271,7 @@ void main() {
 
         final json = request.toJson();
 
-        expect(json['messages'], isA<List>());
+        expect(json['messages'], isA<List<dynamic>>());
         expect((json['messages'] as List).length, equals(2));
         expect((json['messages'] as List).first['role'], equals('system'));
       });

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:test/test.dart';
-import 'package:unified_ai_sdk/src/core/authentication.dart';
 import 'package:unified_ai_sdk/src/core/provider_config.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
 import 'package:unified_ai_sdk/src/models/common/capabilities.dart';
@@ -13,8 +12,12 @@ import 'package:unified_ai_sdk/src/models/requests/tts_request.dart';
 import 'package:unified_ai_sdk/src/models/responses/audio_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/embedding_response.dart';
+import 'package:unified_ai_sdk/src/models/requests/video_analysis_request.dart';
+import 'package:unified_ai_sdk/src/models/requests/video_request.dart';
 import 'package:unified_ai_sdk/src/models/responses/image_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/transcription_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/video_analysis_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/video_response.dart';
 import 'package:unified_ai_sdk/src/orchestrator/provider_health_checker.dart';
 import 'package:unified_ai_sdk/src/providers/base/ai_provider.dart';
 import 'package:unified_ai_sdk/src/providers/base/model_fetcher.dart';
@@ -339,7 +342,7 @@ class _MockProvider extends AiProvider {
   @override
   Future<bool> healthCheck() async {
     if (_slow) {
-      await Future.delayed(Duration(seconds: 1));
+      await Future<void>.delayed(Duration(seconds: 1));
     }
     if (_throwError && _errorToThrow != null) {
       throw _errorToThrow!;
@@ -369,6 +372,16 @@ class _MockProvider extends AiProvider {
 
   @override
   Future<TranscriptionResponse> stt(SttRequest request) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(VideoAnalysisRequest request) {
     throw UnimplementedError();
   }
 }

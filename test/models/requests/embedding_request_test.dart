@@ -107,7 +107,7 @@ void main() {
         final json = request.toJson();
 
         expect(json, isA<Map<String, dynamic>>());
-        expect(json['inputs'], isA<List>());
+        expect(json['inputs'], isA<List<dynamic>>());
         expect(json['model'], isA<String>());
       });
     });

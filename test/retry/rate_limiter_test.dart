@@ -152,7 +152,7 @@ void main() {
         expect(limiter.availableTokens, lessThan(1.0));
 
         // Wait for refill (should take ~250ms for 1 token)
-        await Future.delayed(const Duration(milliseconds: 300));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
 
         // Should be able to acquire again
         final start = DateTime.now();
@@ -186,7 +186,7 @@ void main() {
         );
 
         // Wait longer than window to ensure full refill
-        Future.delayed(const Duration(seconds: 2), () {
+        Future<void>.delayed(const Duration(seconds: 2), () {
           expect(limiter.availableTokens, lessThanOrEqualTo(5.0));
         });
       });
@@ -219,7 +219,7 @@ void main() {
         ];
 
         // Give them time to queue (need to wait for acquire to check tokens)
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
         // Should have requests waiting (may be 2-3 depending on timing)
         final waitingCount = limiter.waitingRequests;
@@ -259,10 +259,10 @@ void main() {
         await limiter.acquire();
 
         // Start a request (will wait)
-        final future = limiter.acquire();
+        limiter.acquire();
 
         // Give it time to queue
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
         expect(limiter.waitingRequests, greaterThan(0));
 
         // Reset (this will clear the queue, causing the future to never complete)

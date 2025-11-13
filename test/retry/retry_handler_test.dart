@@ -81,7 +81,7 @@ void main() {
       );
 
       // Wait a bit to ensure no retries occurred
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(Duration(milliseconds: 50));
       expect(attemptCount, equals(1)); // Only one attempt
     });
 
@@ -101,7 +101,7 @@ void main() {
         throwsA(isA<ClientError>()),
       );
 
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(Duration(milliseconds: 50));
       expect(attemptCount, equals(1));
     });
 
@@ -121,7 +121,7 @@ void main() {
         throwsA(isA<CapabilityError>()),
       );
 
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(Duration(milliseconds: 50));
       expect(attemptCount, equals(1));
     });
 
@@ -144,7 +144,7 @@ void main() {
         throwsA(isA<TransientError>()),
       );
 
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future<void>.delayed(Duration(milliseconds: 100));
       expect(attemptCount, equals(3)); // All attempts exhausted
     });
 
@@ -323,7 +323,7 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(Duration(milliseconds: 50));
       expect(attemptCount,
           equals(1)); // Should not retry non-Exception errors by default
     });
@@ -362,7 +362,7 @@ void main() {
         throwsA(isA<TransientError>()),
       );
 
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(Duration(milliseconds: 50));
       expect(attemptCount, equals(1)); // Only one attempt, no retries
     });
 

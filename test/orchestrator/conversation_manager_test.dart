@@ -92,7 +92,7 @@ void main() {
         final originalUpdatedAt = conversation.updatedAt;
 
         // Wait a bit to ensure different timestamp
-        await Future.delayed(const Duration(milliseconds: 10));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
 
         await manager.addMessage(
           'test-id',
@@ -223,7 +223,7 @@ void main() {
 
     group('delete', () {
       test('should delete existing conversation', () {
-        final conversation = manager.create(id: 'test-id');
+        manager.create(id: 'test-id');
         expect(manager.has('test-id'), isTrue);
 
         final deleted = manager.delete('test-id');

@@ -116,7 +116,7 @@ void main() {
       final json = request.toJson();
 
       expect(json['model'], equals('gpt-4'));
-      expect(json['messages'], isA<List>());
+      expect(json['messages'], isA<List<dynamic>>());
       expect(json['temperature'], equals(0.7));
       expect(json['max_tokens'], equals(500));
       expect(json['top_p'], equals(0.9));
@@ -230,7 +230,7 @@ void main() {
       );
 
       final json = request.toJson();
-      expect(json['tools'], isA<List>());
+      expect(json['tools'], isA<List<dynamic>>());
       expect(json['tools'].length, equals(1));
     });
 
@@ -326,8 +326,8 @@ void main() {
       expect(json['object'], equals('chat.completion'));
       expect(json['created'], equals(1677652288));
       expect(json['model'], equals('gpt-4'));
-      expect(json['choices'], isA<List>());
-      expect(json['usage'], isA<Map>());
+      expect(json['choices'], isA<List<dynamic>>());
+      expect(json['usage'], isA<Map<String, dynamic>>());
       expect(json['system_fingerprint'], equals('fp_123'));
     });
 
@@ -405,7 +405,7 @@ void main() {
       );
 
       expect(request.model, equals('text-embedding-3-small'));
-      expect(request.input, isA<List>());
+      expect(request.input, isA<List<dynamic>>());
       expect((request.input as List).length, equals(2));
     });
 
@@ -488,7 +488,7 @@ void main() {
 
       expect(response.data.length, equals(1));
       expect(response.data.first.index, equals(0));
-      expect(response.data.first.embedding, isA<List>());
+      expect(response.data.first.embedding, isA<List<dynamic>>());
       expect(response.data.first.object, equals('embedding'));
       expect(response.model, equals('text-embedding-3-small'));
       expect(response.usage.promptTokens, equals(5));
@@ -513,9 +513,9 @@ void main() {
 
       final json = response.toJson();
 
-      expect(json['data'], isA<List>());
+      expect(json['data'], isA<List<dynamic>>());
       expect(json['model'], equals('text-embedding-3-small'));
-      expect(json['usage'], isA<Map>());
+      expect(json['usage'], isA<Map<String, dynamic>>());
     });
   });
 
@@ -628,7 +628,7 @@ void main() {
       final json = response.toJson();
 
       expect(json['created'], equals(1234567890));
-      expect(json['data'], isA<List>());
+      expect(json['data'], isA<List<dynamic>>());
       expect(json['data'].length, equals(1));
       expect(json['data'][0]['url'], equals('https://example.com/image.png'));
       expect(json['data'][0]['revised_prompt'], equals('A beautiful sunset'));

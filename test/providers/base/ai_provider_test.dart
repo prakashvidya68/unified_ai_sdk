@@ -11,12 +11,16 @@ import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/stt_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/tts_request.dart';
+import 'package:unified_ai_sdk/src/models/requests/video_analysis_request.dart';
+import 'package:unified_ai_sdk/src/models/requests/video_request.dart';
 import 'package:unified_ai_sdk/src/models/responses/audio_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_stream_event.dart';
 import 'package:unified_ai_sdk/src/models/responses/embedding_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/image_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/transcription_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/video_analysis_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/video_response.dart';
 import 'package:unified_ai_sdk/src/providers/base/ai_provider.dart';
 
 /// Mock implementation of AiProvider for testing
@@ -103,6 +107,18 @@ class MockProvider extends AiProvider {
   }
 
   @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    validateCapability('video');
+    throw UnimplementedError('Mock generateVideo not implemented');
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(VideoAnalysisRequest request) async {
+    validateCapability('videoAnalysis');
+    throw UnimplementedError('Mock analyzeVideo not implemented');
+  }
+
+  @override
   Future<bool> healthCheck() async {
     return _initialized && !_disposed;
   }
@@ -167,6 +183,16 @@ class _DefaultStreamingProvider extends AiProvider {
 
   @override
   Future<TranscriptionResponse> stt(SttRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    throw UnimplementedError('Not implemented for testing');
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(VideoAnalysisRequest request) async {
     throw UnimplementedError('Not implemented for testing');
   }
 

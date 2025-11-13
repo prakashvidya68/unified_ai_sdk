@@ -13,8 +13,12 @@ import 'package:unified_ai_sdk/src/models/responses/audio_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/chat_stream_event.dart';
 import 'package:unified_ai_sdk/src/models/responses/embedding_response.dart';
+import 'package:unified_ai_sdk/src/models/requests/video_analysis_request.dart';
+import 'package:unified_ai_sdk/src/models/requests/video_request.dart';
 import 'package:unified_ai_sdk/src/models/responses/image_response.dart';
 import 'package:unified_ai_sdk/src/models/responses/transcription_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/video_analysis_response.dart';
+import 'package:unified_ai_sdk/src/models/responses/video_response.dart';
 import 'package:unified_ai_sdk/src/orchestrator/intent_detector.dart';
 import 'package:unified_ai_sdk/src/orchestrator/provider_registry.dart';
 import 'package:unified_ai_sdk/src/orchestrator/request_router.dart';
@@ -77,6 +81,14 @@ class MockRouterProvider extends AiProvider {
 
   @override
   Future<TranscriptionResponse> stt(SttRequest request) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(VideoAnalysisRequest request) async =>
       throw UnimplementedError();
 
   @override

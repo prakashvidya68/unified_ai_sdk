@@ -74,8 +74,6 @@ void main() {
           latency: const Duration(milliseconds: 500),
           tokensUsed: 100,
           cached: false,
-          provider: 'openai',
-          operation: 'chat',
         );
 
         await logger.onResponse(event);
@@ -88,8 +86,6 @@ void main() {
           latency: const Duration(milliseconds: 500),
           tokensUsed: 100,
           cached: false,
-          provider: 'openai',
-          operation: 'chat',
         );
 
         await logger.onResponse(event);
@@ -102,8 +98,6 @@ void main() {
           latency: const Duration(milliseconds: 500),
           tokensUsed: null,
           cached: false,
-          provider: 'openai',
-          operation: 'chat',
         );
 
         await logger.onResponse(event);
@@ -116,8 +110,6 @@ void main() {
           latency: const Duration(milliseconds: 10),
           tokensUsed: null,
           cached: true,
-          provider: 'openai',
-          operation: 'chat',
         );
 
         await logger.onResponse(event);
@@ -208,8 +200,6 @@ void main() {
           latency: const Duration(milliseconds: 500),
           tokensUsed: 100,
           cached: false,
-          provider: 'openai',
-          operation: 'chat',
         );
 
         // Should not throw (just doesn't log)

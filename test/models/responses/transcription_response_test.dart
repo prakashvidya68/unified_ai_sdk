@@ -228,7 +228,7 @@ void main() {
 
         final json = response.toJson();
 
-        expect(json['segments'], isA<List>());
+        expect(json['segments'], isA<List<dynamic>>());
         expect(json['segments'].length, equals(1));
       });
 
