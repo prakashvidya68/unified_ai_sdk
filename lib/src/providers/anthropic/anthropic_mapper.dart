@@ -48,11 +48,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../models/base_enums.dart';
 import '../base/provider_mapper.dart';
 import 'anthropic_models.dart';
@@ -379,6 +383,201 @@ class AnthropicMapper implements ProviderMapper {
       message: 'Anthropic does not support speech-to-text',
       code: 'STT_NOT_SUPPORTED',
       provider: 'anthropic',
+    );
+  }
+
+  @override
+  dynamic mapVideoRequest(VideoRequest request, {String? defaultModel}) {
+    throw CapabilityError(
+      message: 'Anthropic Claude API does not support video generation',
+      code: 'UNSUPPORTED_CAPABILITY',
+      provider: 'anthropic',
+    );
+  }
+
+  @override
+  VideoResponse mapVideoResponse(dynamic response) {
+    throw CapabilityError(
+      message: 'Anthropic Claude API does not support video generation',
+      code: 'UNSUPPORTED_CAPABILITY',
+      provider: 'anthropic',
+    );
+  }
+
+  @override
+  AnthropicChatRequest mapVideoAnalysisRequest(
+    VideoAnalysisRequest request, {
+    String? defaultModel,
+  }) {
+    // Determine model - default to claude-sonnet-4-5 if not specified
+    final model = request.model ?? defaultModel ?? 'claude-sonnet-4-5-20250929';
+    if (model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in VideoAnalysisRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Extract Anthropic-specific options
+    final anthropicOptions =
+        request.providerOptions?['anthropic'] ?? <String, dynamic>{};
+
+    // Build messages for video analysis
+    // Anthropic uses content blocks in messages
+    final messages = <Map<String, dynamic>>[];
+
+    // Build user message with video content
+    final content = <Map<String, dynamic>>[];
+
+    // Add text prompt if provided via features or as a prompt
+    final promptText = anthropicOptions['prompt'] as String? ??
+        (request.features != null && request.features!.isNotEmpty
+            ? 'Analyze this video and extract: ${request.features!.join(", ")}'
+            : 'Analyze this video and provide a detailed description.');
+
+    if (promptText.isNotEmpty) {
+      content.add({
+        'type': 'text',
+        'text': promptText,
+      });
+    }
+
+    // Add video content
+    if (request.videoUrl != null) {
+      // For URL, use source block
+      content.add({
+        'type': 'video',
+        'source': {
+          'type': 'url',
+          'url': request.videoUrl,
+        },
+      });
+    } else if (request.videoBase64 != null) {
+      // For base64, use source block with data
+      final mimeType = anthropicOptions['mime_type'] as String? ?? 'video/mp4';
+      content.add({
+        'type': 'video',
+        'source': {
+          'type': 'base64',
+          'media_type': mimeType,
+          'data': request.videoBase64,
+        },
+      });
+    }
+
+    if (content.isEmpty) {
+      throw ClientError(
+        message: 'Either videoUrl or videoBase64 must be provided',
+        code: 'MISSING_VIDEO',
+      );
+    }
+
+    messages.add({
+      'role': 'user',
+      'content': content,
+    });
+
+    // Build system prompt if provided
+    String? systemPrompt;
+    final systemMessage = anthropicOptions['system_message'] as String?;
+    if (systemMessage != null && systemMessage.isNotEmpty) {
+      systemPrompt = systemMessage;
+    }
+
+    // max_tokens is required for Anthropic - use default or from options
+    final maxTokens = anthropicOptions['max_tokens'] as int? ??
+        anthropicOptions['maxTokens'] as int? ??
+        4096;
+
+    return AnthropicChatRequest(
+      model: model,
+      maxTokens: maxTokens,
+      messages: messages,
+      system: systemPrompt,
+      temperature: request.confidenceThreshold != null
+          ? 1.0 - request.confidenceThreshold!
+          : (anthropicOptions['temperature'] as double?),
+      topP: anthropicOptions['top_p'] as double? ??
+          anthropicOptions['topP'] as double?,
+      topK:
+          anthropicOptions['top_k'] as int? ?? anthropicOptions['topK'] as int?,
+    );
+  }
+
+  @override
+  VideoAnalysisResponse mapVideoAnalysisResponse(dynamic response) {
+    if (response is! AnthropicChatResponse) {
+      throw ArgumentError(
+        'Expected AnthropicChatResponse, got ${response.runtimeType}',
+      );
+    }
+
+    // Extract analysis text from content blocks
+    String analysisText = '';
+    for (final block in response.content) {
+      final type = block['type'] as String?;
+      if (type == 'text') {
+        final text = block['text'] as String? ?? '';
+        if (analysisText.isEmpty) {
+          analysisText = text;
+        } else {
+          analysisText = '$analysisText\n$text';
+        }
+      }
+    }
+
+    // Parse the analysis text to extract structured information
+    // This is a simplified implementation - in practice, you might want to
+    // use structured output or parse the text more intelligently
+    final objects = <DetectedObject>[];
+    final scenes = <DetectedScene>[];
+    final actions = <DetectedAction>[];
+    final text = <ExtractedText>[];
+    final labels = <String>[];
+
+    // Basic parsing - extract labels from the analysis text
+    if (analysisText.isNotEmpty) {
+      // Extract potential labels (simple heuristic)
+      final words = analysisText.split(RegExp(r'[.,;!?\s]+'));
+      for (final word in words) {
+        if (word.length > 3 && word[0].toUpperCase() == word[0]) {
+          labels.add(word);
+        }
+      }
+
+      // If no labels found, add the full text as a label
+      if (labels.isEmpty && analysisText.length < 100) {
+        labels.add(analysisText);
+      }
+    }
+
+    // Build metadata from Anthropic-specific fields
+    final metadata = <String, dynamic>{
+      'id': response.id,
+      'type': response.type,
+      'role': response.role,
+      if (response.stopReason != null) 'stop_reason': response.stopReason,
+      if (response.stopSequence != null) 'stop_sequence': response.stopSequence,
+      'usage': {
+        'input_tokens': response.usage.inputTokens,
+        'output_tokens': response.usage.outputTokens,
+        'total_tokens':
+            response.usage.inputTokens + response.usage.outputTokens,
+      },
+      'analysis_text': analysisText,
+    };
+
+    return VideoAnalysisResponse(
+      objects: objects,
+      scenes: scenes,
+      actions: actions,
+      text: text,
+      labels: labels,
+      model: response.model,
+      provider: 'anthropic',
+      timestamp: DateTime.now(),
+      metadata: metadata,
     );
   }
 }

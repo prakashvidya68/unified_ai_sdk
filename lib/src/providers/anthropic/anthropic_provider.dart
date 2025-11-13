@@ -12,11 +12,15 @@ import '../../models/requests/embedding_request.dart';
 import '../../models/requests/image_request.dart';
 import '../../models/requests/stt_request.dart';
 import '../../models/requests/tts_request.dart';
+import '../../models/requests/video_analysis_request.dart';
+import '../../models/requests/video_request.dart';
 import '../../models/responses/audio_response.dart';
 import '../../models/responses/chat_response.dart';
 import '../../models/responses/embedding_response.dart';
 import '../../models/responses/image_response.dart';
 import '../../models/responses/transcription_response.dart';
+import '../../models/responses/video_analysis_response.dart';
+import '../../models/responses/video_response.dart';
 import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
@@ -127,6 +131,10 @@ class AnthropicProvider extends AiProvider {
           false, // Anthropic doesn't support image generation
       supportsTTS: false, // Not yet supported
       supportsSTT: false, // Not yet supported
+      supportsVideoGeneration:
+          false, // Anthropic doesn't support video generation
+      supportsVideoAnalysis:
+          true, // Claude supports video analysis via vision capabilities
       supportsStreaming: true, // Anthropic supports streaming
       fallbackModels: _fallbackModels,
       dynamicModels: false, // Anthropic doesn't have a public models endpoint
@@ -270,6 +278,48 @@ class AnthropicProvider extends AiProvider {
   Future<TranscriptionResponse> stt(SttRequest request) async {
     // Not yet implemented
     throw UnimplementedError('stt() is not yet implemented for Anthropic');
+  }
+
+  @override
+  Future<VideoResponse> generateVideo(VideoRequest request) async {
+    // Anthropic doesn't support video generation
+    throw CapabilityError(
+      message: 'Anthropic Claude API does not support video generation',
+      code: 'UNSUPPORTED_CAPABILITY',
+      provider: id,
+    );
+  }
+
+  @override
+  Future<VideoAnalysisResponse> analyzeVideo(
+      VideoAnalysisRequest request) async {
+    // Validate that video analysis is supported
+    validateCapability('videoAnalysis');
+
+    // Anthropic video analysis uses Claude's vision capabilities
+    // We'll use the messages API with video content in messages
+    final anthropicRequest = _mapper.mapVideoAnalysisRequest(
+      request,
+      defaultModel: _defaultModel,
+    ) as AnthropicChatRequest;
+
+    // Make HTTP POST request to messages endpoint
+    final response = await _http.post(
+      '$_baseUrl/messages',
+      body: jsonEncode(anthropicRequest.toJson()),
+    );
+
+    // Check for HTTP errors
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    // Parse response JSON
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final anthropicResponse = AnthropicChatResponse.fromJson(responseJson);
+
+    // Map Anthropic response to SDK format
+    return _mapper.mapVideoAnalysisResponse(anthropicResponse);
   }
 
   /// Gets the default model for this provider.

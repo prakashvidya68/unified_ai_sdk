@@ -519,7 +519,8 @@ class GoogleProvider extends AiProvider {
   }
 
   @override
-  Future<VideoAnalysisResponse> analyzeVideo(VideoAnalysisRequest request) async {
+  Future<VideoAnalysisResponse> analyzeVideo(
+      VideoAnalysisRequest request) async {
     // Validate that video analysis is supported
     validateCapability('videoAnalysis');
 
