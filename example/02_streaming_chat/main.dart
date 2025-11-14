@@ -34,11 +34,13 @@ void main() async {
         perProviderConfig: {
           'openai': ProviderConfig(
             id: 'openai',
+            settings: {'defaultModel': 'gpt-4o'},
             auth: ApiKeyAuth(apiKey: apiKey),
           ),
         },
       ),
     );
+
     print('✅ SDK initialized\n');
 
     final ai = UnifiedAI.instance;

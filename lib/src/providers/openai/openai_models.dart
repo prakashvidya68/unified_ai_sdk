@@ -13,6 +13,37 @@ import 'dart:typed_data';
 
 import '../../error/error_types.dart';
 
+/// Checks if the model has restricted parameters.
+///
+/// Models with restricted parameters have different requirements than standard GPT models:
+/// - Only support temperature = 1.0 (default)
+/// - Use max_completion_tokens instead of max_tokens
+/// - Do not support top_p, presence_penalty, frequency_penalty, or logprobs
+///
+/// **Included models:**
+/// - GPT-5 series: gpt-5, gpt-5.1, gpt-5-pro, gpt-5-mini, gpt-5-nano, gpt-5-codex, gpt-5.1-codex, gpt-5-chat-latest
+///
+/// **Note:** o1 series models (o1, o1-pro, o1-mini) are legacy/deprecated and have been
+/// succeeded by GPT-5 series. This function still supports them for backward compatibility
+/// if explicitly used, but they are not included in the fallback models list.
+bool _hasRestrictedParameters(String model) {
+  final lowerModel = model.toLowerCase();
+
+  // o1 series models (all variants) - legacy/deprecated, but still supported for backward compatibility
+  if (lowerModel == 'o1' || lowerModel.startsWith('o1-')) {
+    return true;
+  }
+
+  // GPT-5 series models (all variants including gpt-5.1, gpt-5-pro, etc.)
+  // This pattern matches: gpt-5, gpt-5.1, gpt-5-pro, gpt-5-mini, gpt-5-nano,
+  // gpt-5-codex, gpt-5.1-codex, gpt-5-chat-latest, etc.
+  if (lowerModel.startsWith('gpt-5')) {
+    return true;
+  }
+
+  return false;
+}
+
 /// Represents a chat completion request in OpenAI's API format.
 ///
 /// This model matches the exact structure expected by OpenAI's `/v1/chat/completions`
@@ -55,7 +86,16 @@ class OpenAIChatRequest {
   ///
   /// The total length of input tokens and generated tokens is limited by the
   /// model's context length.
+  ///
+  /// Note: For o1 models, use [maxCompletionTokens] instead.
   final int? maxTokens;
+
+  /// Maximum number of completion tokens to generate (for o1 models).
+  ///
+  /// This parameter is used instead of [maxTokens] for o1 series models.
+  /// The total length of input tokens and generated tokens is limited by the
+  /// model's context length.
+  final int? maxCompletionTokens;
 
   /// Alternative to temperature: nucleus sampling.
   ///
@@ -86,6 +126,12 @@ class OpenAIChatRequest {
   /// Accepts a map that maps tokens (specified by their token ID in the tokenizer)
   /// to an associated bias value from -100 to 100.
   final Map<String, int>? logitBias;
+
+  /// Whether to return log probabilities of the output tokens.
+  ///
+  /// If set, the API will return the log probabilities of each output token.
+  /// Not supported by o1 series or gpt-5 models.
+  final bool? logprobs;
 
   /// A unique identifier representing your end-user.
   ///
@@ -134,12 +180,14 @@ class OpenAIChatRequest {
     required this.messages,
     this.temperature,
     this.maxTokens,
+    this.maxCompletionTokens,
     this.topP,
     this.n,
     this.stop,
     this.presencePenalty,
     this.frequencyPenalty,
     this.logitBias,
+    this.logprobs,
     this.user,
     this.stream,
     this.tools,
@@ -153,11 +201,15 @@ class OpenAIChatRequest {
             'temperature must be between 0.0 and 2.0'),
         assert(
             maxTokens == null || maxTokens > 0, 'maxTokens must be positive'),
+        assert(maxCompletionTokens == null || maxCompletionTokens > 0,
+            'maxCompletionTokens must be positive'),
         assert(n == null || n > 0, 'n must be positive');
 
   /// Converts this request to a JSON map matching OpenAI's API format.
   ///
   /// Only non-null optional fields are included in the output.
+  /// For o1 models, filters out unsupported parameters and uses
+  /// max_completion_tokens instead of max_tokens.
   ///
   /// **Example output:**
   /// ```json
@@ -171,24 +223,56 @@ class OpenAIChatRequest {
   /// }
   /// ```
   Map<String, dynamic> toJson() {
-    return {
+    final hasRestrictedParams = _hasRestrictedParameters(model);
+
+    final json = <String, dynamic>{
       'model': model,
       'messages': messages,
-      if (temperature != null) 'temperature': temperature,
-      if (maxTokens != null) 'max_tokens': maxTokens,
-      if (topP != null) 'top_p': topP,
-      if (n != null) 'n': n,
-      if (stop != null) 'stop': stop,
-      if (presencePenalty != null) 'presence_penalty': presencePenalty,
-      if (frequencyPenalty != null) 'frequency_penalty': frequencyPenalty,
-      if (logitBias != null) 'logit_bias': logitBias,
-      if (user != null) 'user': user,
-      if (stream != null) 'stream': stream,
-      if (tools != null) 'tools': tools,
-      if (toolChoice != null) 'tool_choice': toolChoice,
-      if (functionCall != null) 'function_call': functionCall,
-      if (functions != null) 'functions': functions,
     };
+
+    // For models with restricted parameters, apply parameter restrictions
+    if (hasRestrictedParams) {
+      // Temperature: Only support temperature = 1.0 (default)
+      // If temperature is explicitly set to 1.0, we can include it.
+      // Otherwise, we omit it to use the default.
+      if (temperature != null && temperature == 1.0) {
+        json['temperature'] = temperature;
+      }
+      // Max tokens: Use max_completion_tokens instead of max_tokens
+      if (maxCompletionTokens != null) {
+        json['max_completion_tokens'] = maxCompletionTokens;
+      } else if (maxTokens != null) {
+        // Fallback: use maxTokens as max_completion_tokens
+        json['max_completion_tokens'] = maxTokens;
+      }
+      // Note: top_p, presence_penalty, frequency_penalty, and logprobs are
+      // explicitly excluded for models with restricted parameters (handled below)
+    } else {
+      // Standard models: include all parameters
+      if (temperature != null) json['temperature'] = temperature;
+      if (maxTokens != null) json['max_tokens'] = maxTokens;
+      if (topP != null) json['top_p'] = topP;
+      if (presencePenalty != null) json['presence_penalty'] = presencePenalty;
+      if (frequencyPenalty != null)
+        json['frequency_penalty'] = frequencyPenalty;
+    }
+
+    // Common parameters for all models
+    if (n != null) json['n'] = n;
+    if (stop != null) json['stop'] = stop;
+    if (logitBias != null) json['logit_bias'] = logitBias;
+    // logprobs is not supported by models with restricted parameters
+    if (logprobs != null && !hasRestrictedParams) {
+      json['logprobs'] = logprobs;
+    }
+    if (user != null) json['user'] = user;
+    if (stream != null) json['stream'] = stream;
+    if (tools != null) json['tools'] = tools;
+    if (toolChoice != null) json['tool_choice'] = toolChoice;
+    if (functionCall != null) json['function_call'] = functionCall;
+    if (functions != null) json['functions'] = functions;
+
+    return json;
   }
 
   /// Creates an [OpenAIChatRequest] from a JSON map.
@@ -213,11 +297,27 @@ class OpenAIChatRequest {
       );
     }
 
+    // Handle max_tokens vs max_completion_tokens
+    final hasRestrictedParams = _hasRestrictedParameters(model);
+    final int? maxTokensValue;
+    final int? maxCompletionTokensValue;
+
+    if (hasRestrictedParams) {
+      // For models with restricted parameters, prefer max_completion_tokens
+      maxCompletionTokensValue =
+          json['max_completion_tokens'] as int? ?? json['max_tokens'] as int?;
+      maxTokensValue = null;
+    } else {
+      maxTokensValue = json['max_tokens'] as int?;
+      maxCompletionTokensValue = null;
+    }
+
     return OpenAIChatRequest(
       model: model,
       messages: List<Map<String, dynamic>>.from(messages),
       temperature: json['temperature'] as double?,
-      maxTokens: json['max_tokens'] as int?,
+      maxTokens: maxTokensValue,
+      maxCompletionTokens: maxCompletionTokensValue,
       topP: json['top_p'] as double?,
       n: json['n'] as int?,
       stop:
@@ -227,6 +327,7 @@ class OpenAIChatRequest {
       logitBias: json['logit_bias'] != null
           ? Map<String, int>.from(json['logit_bias'] as Map)
           : null,
+      logprobs: json['logprobs'] as bool?,
       user: json['user'] as String?,
       stream: json['stream'] as bool?,
       tools: json['tools'] != null
@@ -252,12 +353,14 @@ class OpenAIChatRequest {
         _listEquals(other.messages, messages) &&
         other.temperature == temperature &&
         other.maxTokens == maxTokens &&
+        other.maxCompletionTokens == maxCompletionTokens &&
         other.topP == topP &&
         other.n == n &&
         _listEqualsStrings(other.stop, stop) &&
         other.presencePenalty == presencePenalty &&
         other.frequencyPenalty == frequencyPenalty &&
         _mapEquals(other.logitBias, logitBias) &&
+        other.logprobs == logprobs &&
         other.user == user &&
         other.stream == stream &&
         _listEqualsMaps(other.tools, tools) &&
@@ -285,12 +388,14 @@ class OpenAIChatRequest {
       messagesHash,
       temperature,
       maxTokens,
+      maxCompletionTokens,
       topP,
       n,
       Object.hashAll(stop ?? []),
       presencePenalty,
       frequencyPenalty,
       logitBias,
+      logprobs,
       user,
       stream,
       toolsHash,
@@ -477,6 +582,395 @@ class OpenAIChatChoice {
   }
 }
 
+/// Represents a request in OpenAI's Responses API format.
+///
+/// This model matches the structure expected by OpenAI's `/v1/responses` endpoint.
+/// The Responses API is stateful and supports both simple input strings and
+/// message arrays, with optional previous_response_id for conversation continuity.
+///
+/// **OpenAI API Reference:**
+/// https://platform.openai.com/docs/api-reference/responses/create
+///
+/// **Example:**
+/// ```dart
+/// final request = OpenAIResponseRequest(
+///   model: 'gpt-5',
+///   input: 'Hello!',
+///   instructions: 'You are a helpful assistant.',
+/// );
+/// ```
+///
+/// **Stateful conversation example:**
+/// ```dart
+/// final request = OpenAIResponseRequest(
+///   model: 'gpt-5',
+///   input: 'Continue the conversation',
+///   previousResponseId: 'resp_abc123',
+/// );
+/// ```
+class OpenAIResponseRequest {
+  /// ID of the model to use.
+  final String model;
+
+  /// The input for the response.
+  ///
+  /// Can be a string (simple input) or a list of messages (for multi-turn conversations).
+  /// If using messages, the format is the same as Chat Completions API.
+  final dynamic input;
+
+  /// Optional system-level instructions.
+  ///
+  /// Provides high-level guidance to the model. This is similar to system messages
+  /// but is a separate field in the Responses API.
+  final String? instructions;
+
+  /// Optional ID of the previous response for stateful conversations.
+  ///
+  /// When provided, the API will use the conversation context from the previous
+  /// response instead of requiring the full message history.
+  final String? previousResponseId;
+
+  /// Sampling temperature between 0 and 2.
+  final double? temperature;
+
+  /// Maximum number of completion tokens to generate.
+  ///
+  /// Note: Responses API uses max_completion_tokens, not max_tokens.
+  final int? maxCompletionTokens;
+
+  /// Alternative to temperature: nucleus sampling.
+  final double? topP;
+
+  /// Number of response choices to generate.
+  final int? n;
+
+  /// Up to 4 sequences where the API will stop generating further tokens.
+  final List<String>? stop;
+
+  /// Number between -2.0 and 2.0. Positive values penalize new tokens based
+  /// on whether they appear in the text so far.
+  final double? presencePenalty;
+
+  /// Number between -2.0 and 2.0. Positive values penalize new tokens based
+  /// on their existing frequency in the text so far.
+  final double? frequencyPenalty;
+
+  /// Modify the likelihood of specified tokens appearing in the completion.
+  final Map<String, int>? logitBias;
+
+  /// A unique identifier representing your end-user.
+  final String? user;
+
+  /// Whether to stream back partial progress.
+  final bool? stream;
+
+  /// A list of tools the model may call.
+  final List<Map<String, dynamic>>? tools;
+
+  /// Controls which (if any) function is called by the model.
+  final dynamic toolChoice;
+
+  /// Creates a new [OpenAIResponseRequest] instance.
+  OpenAIResponseRequest({
+    required this.model,
+    required this.input,
+    this.instructions,
+    this.previousResponseId,
+    this.temperature,
+    this.maxCompletionTokens,
+    this.topP,
+    this.n,
+    this.stop,
+    this.presencePenalty,
+    this.frequencyPenalty,
+    this.logitBias,
+    this.user,
+    this.stream,
+    this.tools,
+    this.toolChoice,
+  })  : assert(model.isNotEmpty, 'model must not be empty'),
+        assert(input != null, 'input must not be null');
+
+  /// Converts this request to a JSON map matching OpenAI's Responses API format.
+  Map<String, dynamic> toJson() {
+    final hasRestrictedParams = _hasRestrictedParameters(model);
+
+    final json = <String, dynamic>{
+      'model': model,
+      'input': input,
+    };
+
+    if (instructions != null) {
+      json['instructions'] = instructions;
+    }
+
+    if (previousResponseId != null) {
+      json['previous_response_id'] = previousResponseId;
+    }
+
+    // For models with restricted parameters, apply parameter restrictions
+    if (hasRestrictedParams) {
+      // Temperature: Only support temperature = 1.0 (default)
+      if (temperature != null && temperature == 1.0) {
+        json['temperature'] = temperature;
+      }
+      // Max tokens: Use max_completion_tokens
+      if (maxCompletionTokens != null) {
+        json['max_completion_tokens'] = maxCompletionTokens;
+      }
+      // Note: top_p, presence_penalty, frequency_penalty are excluded
+    } else {
+      // Standard models: include all parameters
+      if (temperature != null) json['temperature'] = temperature;
+      if (maxCompletionTokens != null) {
+        json['max_completion_tokens'] = maxCompletionTokens;
+      }
+      if (topP != null) json['top_p'] = topP;
+      if (presencePenalty != null) json['presence_penalty'] = presencePenalty;
+      if (frequencyPenalty != null)
+        json['frequency_penalty'] = frequencyPenalty;
+    }
+
+    // Common parameters for all models
+    if (n != null) json['n'] = n;
+    if (stop != null) json['stop'] = stop;
+    if (logitBias != null) json['logit_bias'] = logitBias;
+    if (user != null) json['user'] = user;
+    if (stream != null) json['stream'] = stream;
+    if (tools != null) json['tools'] = tools;
+    if (toolChoice != null) json['tool_choice'] = toolChoice;
+
+    return json;
+  }
+
+  /// Creates an [OpenAIResponseRequest] from a JSON map.
+  factory OpenAIResponseRequest.fromJson(Map<String, dynamic> json) {
+    final model = json['model'] as String;
+    if (model.isEmpty) {
+      throw ClientError(
+        message: 'Missing required field: model',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    final input = json['input'];
+    if (input == null) {
+      throw ClientError(
+        message: 'Missing required field: input',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    return OpenAIResponseRequest(
+      model: model,
+      input: input,
+      instructions: json['instructions'] as String?,
+      previousResponseId: json['previous_response_id'] as String?,
+      temperature: json['temperature'] as double?,
+      maxCompletionTokens: json['max_completion_tokens'] as int?,
+      topP: json['top_p'] as double?,
+      n: json['n'] as int?,
+      stop:
+          json['stop'] != null ? List<String>.from(json['stop'] as List) : null,
+      presencePenalty: json['presence_penalty'] as double?,
+      frequencyPenalty: json['frequency_penalty'] as double?,
+      logitBias: json['logit_bias'] != null
+          ? Map<String, int>.from(json['logit_bias'] as Map)
+          : null,
+      user: json['user'] as String?,
+      stream: json['stream'] as bool?,
+      tools: json['tools'] != null
+          ? List<Map<String, dynamic>>.from(json['tools'] as List)
+          : null,
+      toolChoice: json['tool_choice'],
+    );
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIResponseRequest(model: $model, input: ${input is String ? input : "${(input as List).length} messages"})';
+  }
+}
+
+/// Represents a response in OpenAI's Responses API format.
+///
+/// This model matches the structure returned by OpenAI's `/v1/responses` endpoint.
+/// The Responses API is stateful and includes a response_id for linking to
+/// subsequent requests.
+///
+/// **OpenAI API Reference:**
+/// https://platform.openai.com/docs/api-reference/responses/object
+class OpenAIResponseResponse {
+  /// Unique identifier for this response.
+  ///
+  /// This ID can be used in subsequent requests via previous_response_id
+  /// to maintain conversation state.
+  final String responseId;
+
+  /// The model used for the response.
+  final String model;
+
+  /// List of response choices.
+  final List<OpenAIResponseChoice> choices;
+
+  /// Usage statistics for the response request.
+  final OpenAIUsage? usage;
+
+  /// Unix timestamp (in seconds) of when the response was created.
+  final int created;
+
+  /// Creates a new [OpenAIResponseResponse] instance.
+  OpenAIResponseResponse({
+    required this.responseId,
+    required this.model,
+    required this.choices,
+    this.usage,
+    required this.created,
+  });
+
+  /// Creates an [OpenAIResponseResponse] from a JSON map.
+  factory OpenAIResponseResponse.fromJson(Map<String, dynamic> json) {
+    // Handle both 'id' (actual API) and 'response_id' (legacy) for compatibility
+    final responseId = json['id'] as String? ?? json['response_id'] as String?;
+    if (responseId == null) {
+      throw FormatException(
+        'Missing required field: id or response_id',
+        json,
+      );
+    }
+
+    final model = json['model'] as String?;
+    if (model == null) {
+      throw FormatException(
+        'Missing required field: model',
+        json,
+      );
+    }
+
+    // Handle both 'output' (actual API) and 'choices' (legacy) for compatibility
+    final outputOrChoices = json['output'] ?? json['choices'];
+    if (outputOrChoices == null || outputOrChoices is! List) {
+      throw FormatException(
+        'Missing or invalid required field: output or choices',
+        json,
+      );
+    }
+
+    // Handle both 'created_at' (actual API) and 'created' (legacy) for compatibility
+    final created = json['created_at'] ?? json['created'];
+    if (created == null || created is! int) {
+      throw FormatException(
+        'Missing or invalid required field: created_at or created',
+        json,
+      );
+    }
+
+    return OpenAIResponseResponse(
+      responseId: responseId,
+      model: model,
+      choices: outputOrChoices
+          .asMap()
+          .entries
+          .map((entry) => OpenAIResponseChoice.fromJson(
+                entry.value as Map<String, dynamic>,
+                index: entry.key,
+              ))
+          .toList(),
+      usage: json['usage'] != null
+          ? OpenAIUsage.fromJson(json['usage'] as Map<String, dynamic>)
+          : null,
+      created: created,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'response_id': responseId,
+      'model': model,
+      'choices': choices.map((c) => c.toJson()).toList(),
+      if (usage != null) 'usage': usage!.toJson(),
+      'created': created,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIResponseResponse(responseId: $responseId, model: $model, choices: ${choices.length})';
+  }
+}
+
+/// Represents a single response choice in OpenAI's Responses API format.
+class OpenAIResponseChoice {
+  /// The index of the choice in the list of choices.
+  final int index;
+
+  /// The message generated by the model.
+  final Map<String, dynamic> message;
+
+  /// The reason the model stopped generating tokens.
+  final String? finishReason;
+
+  /// Creates a new [OpenAIResponseChoice] instance.
+  OpenAIResponseChoice({
+    required this.index,
+    required this.message,
+    this.finishReason,
+  });
+
+  /// Creates an [OpenAIResponseChoice] from a JSON map.
+  factory OpenAIResponseChoice.fromJson(
+    Map<String, dynamic> json, {
+    int? index,
+  }) {
+    // Handle Responses API output format (from 'output' array)
+    if (json['type'] == 'message' || json.containsKey('content')) {
+      // Extract text from content array
+      final content = json['content'] as List?;
+      String? text;
+      if (content != null && content.isNotEmpty) {
+        final firstContent = content[0] as Map<String, dynamic>?;
+        if (firstContent != null && firstContent['type'] == 'output_text') {
+          text = firstContent['text'] as String?;
+        }
+      }
+
+      // Build message map in the expected format
+      final message = <String, dynamic>{
+        'role': json['role'] as String? ?? 'assistant',
+        'content': text ?? '',
+      };
+
+      return OpenAIResponseChoice(
+        index: index ?? json['index'] as int? ?? 0,
+        message: message,
+        finishReason: json['finish_reason'] as String?,
+      );
+    }
+
+    // Handle legacy format (from 'choices' array with 'message' field)
+    return OpenAIResponseChoice(
+      index: index ?? json['index'] as int? ?? 0,
+      message: Map<String, dynamic>.from(json['message'] as Map),
+      finishReason: json['finish_reason'] as String?,
+    );
+  }
+
+  /// Converts this choice to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'index': index,
+      'message': message,
+      if (finishReason != null) 'finish_reason': finishReason,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'OpenAIResponseChoice(index: $index, finishReason: $finishReason)';
+  }
+}
+
 /// Represents usage statistics in OpenAI's format.
 class OpenAIUsage {
   /// Number of tokens in the prompt.
@@ -497,10 +991,18 @@ class OpenAIUsage {
 
   /// Creates an [OpenAIUsage] from a JSON map.
   factory OpenAIUsage.fromJson(Map<String, dynamic> json) {
+    // Handle both Responses API format (input_tokens/output_tokens) and
+    // Chat Completions format (prompt_tokens/completion_tokens)
+    final promptTokens =
+        json['input_tokens'] as int? ?? json['prompt_tokens'] as int? ?? 0;
+    final completionTokens =
+        json['output_tokens'] as int? ?? json['completion_tokens'] as int? ?? 0;
+    final totalTokens = json['total_tokens'] as int? ?? 0;
+
     return OpenAIUsage(
-      promptTokens: json['prompt_tokens'] as int,
-      completionTokens: json['completion_tokens'] as int,
-      totalTokens: json['total_tokens'] as int,
+      promptTokens: promptTokens,
+      completionTokens: completionTokens,
+      totalTokens: totalTokens,
     );
   }
 

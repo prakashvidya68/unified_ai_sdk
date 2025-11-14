@@ -79,14 +79,29 @@ class OpenAIMapper implements ProviderMapper {
   @override
   OpenAIChatRequest mapChatRequest(ChatRequest request,
       {String? defaultModel}) {
+    // For Responses API, we'll use a different method
+    // This method is kept for backward compatibility but will be deprecated
     return _mapChatRequestImpl(request, defaultModel: defaultModel);
+  }
+
+  /// Maps a [ChatRequest] to OpenAI's Responses API format.
+  ///
+  /// The Responses API uses a different structure with `input` field and
+  /// supports `previous_response_id` for stateful conversations.
+  OpenAIResponseRequest mapResponseRequest(ChatRequest request,
+      {String? defaultModel}) {
+    return _mapResponseRequestImpl(request, defaultModel: defaultModel);
   }
 
   @override
   ChatResponse mapChatResponse(dynamic response) {
+    // Handle both Chat Completions and Responses API formats
+    if (response is OpenAIResponseResponse) {
+      return _mapResponseResponseImpl(response);
+    }
     if (response is! OpenAIChatResponse) {
       throw ArgumentError(
-          'Expected OpenAIChatResponse, got ${response.runtimeType}');
+          'Expected OpenAIChatResponse or OpenAIResponseResponse, got ${response.runtimeType}');
     }
     return _mapChatResponseImpl(response);
   }
@@ -157,26 +172,68 @@ class OpenAIMapper implements ProviderMapper {
       );
     }
 
+    // Check if this model has restricted parameters (gpt-5 series, or legacy o1 series)
+    final hasRestrictedParams = _hasRestrictedParameters(model);
+
+    // For models with restricted parameters, filter unsupported parameters
+    double? temperature;
+    int? maxTokens;
+    int? maxCompletionTokens;
+    double? topP;
+    double? presencePenalty;
+    double? frequencyPenalty;
+
+    if (hasRestrictedParams) {
+      // Models with restricted parameters (GPT-5 series, or legacy o1 series) only support
+      // temperature = 1.0 (default). If temperature is set to something other than 1.0, we omit it.
+      if (request.temperature != null && request.temperature == 1.0) {
+        temperature = request.temperature;
+      }
+      // These models use max_completion_tokens instead of max_tokens
+      if (request.maxTokens != null) {
+        maxCompletionTokens = request.maxTokens;
+      }
+      // The following parameters are not supported by models with restricted parameters:
+      // - top_p: Not supported
+      // - presence_penalty: Not supported
+      // - frequency_penalty: Not supported
+      // - logprobs: Not supported (handled separately below)
+      topP = null;
+      presencePenalty = null;
+      frequencyPenalty = null;
+    } else {
+      // Standard models: use all parameters as-is
+      temperature = request.temperature;
+      maxTokens = request.maxTokens;
+      topP = request.topP;
+      presencePenalty = openaiOptions['presence_penalty'] as double? ??
+          openaiOptions['presencePenalty'] as double?;
+      frequencyPenalty = openaiOptions['frequency_penalty'] as double? ??
+          openaiOptions['frequencyPenalty'] as double?;
+    }
+
     // Build OpenAI request
     return OpenAIChatRequest(
       model: model,
       messages: messages,
-      temperature: request.temperature,
-      maxTokens: request.maxTokens,
-      topP: request.topP,
+      temperature: temperature,
+      maxTokens: maxTokens,
+      maxCompletionTokens: maxCompletionTokens,
+      topP: topP,
       n: request.n,
       stop: request.stop,
+      presencePenalty: presencePenalty,
+      frequencyPenalty: frequencyPenalty,
       user: request.user,
       // OpenAI-specific fields from providerOptions
-      presencePenalty: openaiOptions['presence_penalty'] as double? ??
-          openaiOptions['presencePenalty'] as double?,
-      frequencyPenalty: openaiOptions['frequency_penalty'] as double? ??
-          openaiOptions['frequencyPenalty'] as double?,
       logitBias: openaiOptions['logit_bias'] != null
           ? Map<String, int>.from(openaiOptions['logit_bias'] as Map)
           : openaiOptions['logitBias'] != null
               ? Map<String, int>.from(openaiOptions['logitBias'] as Map)
               : null,
+      // logprobs is not supported by models with restricted parameters
+      logprobs:
+          hasRestrictedParams ? null : (openaiOptions['logprobs'] as bool?),
       stream: openaiOptions['stream'] as bool?,
       tools: openaiOptions['tools'] != null
           ? List<Map<String, dynamic>>.from(openaiOptions['tools'] as List)
@@ -186,6 +243,37 @@ class OpenAIMapper implements ProviderMapper {
           openaiOptions['functionCall'] as String?,
       functions: openaiOptions['functions'] as Map<String, dynamic>?,
     );
+  }
+
+  /// Checks if the model has restricted parameters.
+  ///
+  /// Models with restricted parameters have different requirements than standard GPT models:
+  /// - Only support temperature = 1.0 (default)
+  /// - Use max_completion_tokens instead of max_tokens
+  /// - Do not support top_p, presence_penalty, frequency_penalty, or logprobs
+  ///
+  /// **Included models:**
+  /// - GPT-5 series: gpt-5, gpt-5.1, gpt-5-pro, gpt-5-mini, gpt-5-nano, gpt-5-codex, gpt-5.1-codex, gpt-5-chat-latest
+  ///
+  /// **Note:** o1 series models (o1, o1-pro, o1-mini) are legacy/deprecated and have been
+  /// succeeded by GPT-5 series. This function still supports them for backward compatibility
+  /// if explicitly used, but they are not included in the fallback models list.
+  bool _hasRestrictedParameters(String model) {
+    final lowerModel = model.toLowerCase();
+
+    // o1 series models (all variants) - legacy/deprecated, but still supported for backward compatibility
+    if (lowerModel == 'o1' || lowerModel.startsWith('o1-')) {
+      return true;
+    }
+
+    // GPT-5 series models (all variants including gpt-5.1, gpt-5-pro, etc.)
+    // This pattern matches: gpt-5, gpt-5.1, gpt-5-pro, gpt-5-mini, gpt-5-nano,
+    // gpt-5-codex, gpt-5.1-codex, gpt-5-chat-latest, etc.
+    if (lowerModel.startsWith('gpt-5')) {
+      return true;
+    }
+
+    return false;
   }
 
   ChatResponse _mapChatResponseImpl(OpenAIChatResponse response) {
@@ -242,6 +330,225 @@ class OpenAIMapper implements ProviderMapper {
 
     return ChatResponse(
       id: response.id,
+      choices: choices,
+      usage: usage,
+      model: response.model,
+      provider: 'openai',
+      timestamp: timestamp,
+      metadata: metadata,
+    );
+  }
+
+  /// Maps a [ChatRequest] to OpenAI's Responses API request format.
+  ///
+  /// The Responses API supports:
+  /// - Simple string input or message arrays
+  /// - Instructions field for system-level guidance
+  /// - previous_response_id for stateful conversations
+  OpenAIResponseRequest _mapResponseRequestImpl(
+    ChatRequest request, {
+    String? defaultModel,
+  }) {
+    // Extract OpenAI-specific options from providerOptions
+    final openaiOptions =
+        request.providerOptions?['openai'] ?? <String, dynamic>{};
+
+    // Determine model - use request.model, then defaultModel, or throw error
+    final model = request.model ?? defaultModel;
+    if (model == null || model.isEmpty) {
+      throw ClientError(
+        message:
+            'Model is required. Either specify model in ChatRequest or provide defaultModel.',
+        code: 'MISSING_MODEL',
+      );
+    }
+
+    // Check if this model has restricted parameters
+    final hasRestrictedParams = _hasRestrictedParameters(model);
+
+    // Determine input format for Responses API
+    // If there's a previous_response_id, we can use just the latest user message
+    // Otherwise, we convert all messages to the format
+    final previousResponseId = openaiOptions['previous_response_id'] as String?;
+
+    dynamic input;
+    String? instructions;
+
+    if (previousResponseId != null && request.messages.length > 1) {
+      // Stateful: use only the latest user message as input
+      final lastMessage = request.messages.last;
+      if (lastMessage.role == Role.user) {
+        input = lastMessage.content;
+      } else {
+        // If last message is not user, use all messages
+        input = request.messages.map((msg) {
+          final messageMap = <String, dynamic>{
+            'role': _mapRoleToOpenAI(msg.role),
+            'content': msg.content,
+          };
+          if (msg.name != null) {
+            messageMap['name'] = msg.name;
+          }
+          if (msg.meta != null) {
+            messageMap.addAll(msg.meta!);
+          }
+          return messageMap;
+        }).toList();
+      }
+    } else {
+      // Non-stateful: convert all messages
+      // Extract system message as instructions if present
+      final systemMessages =
+          request.messages.where((msg) => msg.role == Role.system).toList();
+      final nonSystemMessages =
+          request.messages.where((msg) => msg.role != Role.system).toList();
+
+      if (systemMessages.isNotEmpty) {
+        // Combine all system messages into instructions
+        instructions = systemMessages.map((msg) => msg.content).join('\n');
+      }
+
+      if (nonSystemMessages.length == 1 &&
+          nonSystemMessages.first.role == Role.user) {
+        // Single user message: use as string input
+        input = nonSystemMessages.first.content;
+      } else {
+        // Multiple messages: use as message array
+        input = nonSystemMessages.map((msg) {
+          final messageMap = <String, dynamic>{
+            'role': _mapRoleToOpenAI(msg.role),
+            'content': msg.content,
+          };
+          if (msg.name != null) {
+            messageMap['name'] = msg.name;
+          }
+          if (msg.meta != null) {
+            messageMap.addAll(msg.meta!);
+          }
+          return messageMap;
+        }).toList();
+      }
+    }
+
+    // Override instructions if provided in providerOptions
+    instructions = openaiOptions['instructions'] as String? ?? instructions;
+
+    // For models with restricted parameters, filter unsupported parameters
+    double? temperature;
+    int? maxCompletionTokens;
+    double? topP;
+    double? presencePenalty;
+    double? frequencyPenalty;
+
+    if (hasRestrictedParams) {
+      // Models with restricted parameters only support temperature = 1.0 (default)
+      if (request.temperature != null && request.temperature == 1.0) {
+        temperature = request.temperature;
+      }
+      // These models use max_completion_tokens
+      if (request.maxTokens != null) {
+        maxCompletionTokens = request.maxTokens;
+      }
+      // top_p, presence_penalty, and frequency_penalty are not supported
+      topP = null;
+      presencePenalty = null;
+      frequencyPenalty = null;
+    } else {
+      // Standard models: use all parameters as-is
+      temperature = request.temperature;
+      if (request.maxTokens != null) {
+        maxCompletionTokens = request.maxTokens;
+      }
+      topP = request.topP;
+      presencePenalty = openaiOptions['presence_penalty'] as double? ??
+          openaiOptions['presencePenalty'] as double?;
+      frequencyPenalty = openaiOptions['frequency_penalty'] as double? ??
+          openaiOptions['frequencyPenalty'] as double?;
+    }
+
+    // Build Responses API request
+    return OpenAIResponseRequest(
+      model: model,
+      input: input,
+      instructions: instructions,
+      previousResponseId: previousResponseId,
+      temperature: temperature,
+      maxCompletionTokens: maxCompletionTokens,
+      topP: topP,
+      n: request.n,
+      stop: request.stop,
+      presencePenalty: presencePenalty,
+      frequencyPenalty: frequencyPenalty,
+      logitBias: openaiOptions['logit_bias'] != null
+          ? Map<String, int>.from(openaiOptions['logit_bias'] as Map)
+          : openaiOptions['logitBias'] != null
+              ? Map<String, int>.from(openaiOptions['logitBias'] as Map)
+              : null,
+      user: request.user,
+      stream: openaiOptions['stream'] as bool?,
+      tools: openaiOptions['tools'] != null
+          ? List<Map<String, dynamic>>.from(openaiOptions['tools'] as List)
+          : null,
+      toolChoice: openaiOptions['tool_choice'] ?? openaiOptions['toolChoice'],
+    );
+  }
+
+  /// Maps OpenAI's Responses API response to SDK [ChatResponse] format.
+  ChatResponse _mapResponseResponseImpl(OpenAIResponseResponse response) {
+    // Convert Responses API choices to SDK choices
+    final choices = response.choices.map((choice) {
+      // Convert Responses API message map to Message object
+      final messageMap = choice.message;
+      final role = _mapRoleFromOpenAI(messageMap['role'] as String);
+      final content = messageMap['content'] as String? ?? '';
+
+      // Extract name if present
+      final name = messageMap['name'] as String?;
+
+      // Extract any additional fields as metadata
+      final meta = <String, dynamic>{};
+      messageMap.forEach((key, value) {
+        if (key != 'role' && key != 'content' && key != 'name') {
+          meta[key] = value;
+        }
+      });
+
+      final message = Message(
+        role: role,
+        content: content,
+        name: name,
+        meta: meta.isEmpty ? null : meta,
+      );
+
+      return ChatChoice(
+        index: choice.index,
+        message: message,
+        finishReason: choice.finishReason,
+      );
+    }).toList();
+
+    // Convert usage statistics
+    final usage = response.usage != null
+        ? Usage(
+            promptTokens: response.usage!.promptTokens,
+            completionTokens: response.usage!.completionTokens,
+            totalTokens: response.usage!.totalTokens,
+          )
+        : Usage(promptTokens: 0, completionTokens: 0, totalTokens: 0);
+
+    // Convert timestamp from Unix seconds to DateTime
+    final timestamp =
+        DateTime.fromMillisecondsSinceEpoch(response.created * 1000);
+
+    // Build metadata from Responses API-specific fields
+    final metadata = <String, dynamic>{
+      'response_id':
+          response.responseId, // Important for stateful conversations
+      'created': response.created,
+    };
+
+    return ChatResponse(
+      id: response.responseId, // Use response_id as the ID
       choices: choices,
       usage: usage,
       model: response.model,
@@ -372,8 +679,8 @@ class OpenAIMapper implements ProviderMapper {
     ImageRequest request, {
     String? defaultModel,
   }) {
-    // Determine model - default to dall-e-3 if not specified
-    final model = request.model ?? defaultModel ?? 'dall-e-3';
+    // Determine model - default to gpt-image-1 if not specified
+    final model = request.model ?? defaultModel ?? 'gpt-image-1';
 
     // Convert ImageSize enum to string format
     String? sizeString;
@@ -385,11 +692,13 @@ class OpenAIMapper implements ProviderMapper {
     final openaiOptions =
         request.providerOptions?['openai'] ?? <String, dynamic>{};
 
-    // For DALL-E 3, n must be 1 (enforced by API, but we can validate)
+    // For GPT Image 1, n must be 1 (enforced by API, but we can validate)
     final int? n = request.n;
-    if (model == 'dall-e-3' && n != null && n != 1) {
+    if ((model == 'gpt-image-1' || model == 'gpt-image-1-mini') &&
+        n != null &&
+        n != 1) {
       throw ClientError(
-        message: 'DALL-E 3 only supports generating 1 image at a time (n=1)',
+        message: 'GPT Image 1 only supports generating 1 image at a time (n=1)',
         code: 'INVALID_N_VALUE',
       );
     }
@@ -442,8 +751,8 @@ class OpenAIMapper implements ProviderMapper {
 
   @override
   OpenAITtsRequest mapTtsRequest(TtsRequest request, {String? defaultModel}) {
-    // Determine model
-    final model = request.model ?? defaultModel ?? 'tts-1';
+    // Determine model - default to gpt-4o-mini-tts if not specified
+    final model = request.model ?? defaultModel ?? 'gpt-4o-mini-tts';
 
     // Extract OpenAI-specific options
     final openaiOptions =
@@ -479,7 +788,7 @@ class OpenAIMapper implements ProviderMapper {
     final format = _extractAudioFormat(response, request);
 
     // Extract model from request
-    final model = request.model ?? 'tts-1';
+    final model = request.model ?? 'gpt-4o-mini-tts';
 
     return AudioResponse(
       bytes: audioBytes,
@@ -511,8 +820,8 @@ class OpenAIMapper implements ProviderMapper {
 
   @override
   OpenAISttRequest mapSttRequest(SttRequest request, {String? defaultModel}) {
-    // Determine model
-    final model = request.model ?? defaultModel ?? 'whisper-1';
+    // Determine model - default to gpt-4o-transcribe if not specified
+    final model = request.model ?? defaultModel ?? 'gpt-4o-transcribe';
 
     // Extract OpenAI-specific options
     final openaiOptions =
@@ -560,7 +869,7 @@ class OpenAIMapper implements ProviderMapper {
     }
 
     // Extract model from request
-    final model = request.model ?? 'whisper-1';
+    final model = request.model ?? 'gpt-4o-transcribe';
 
     return TranscriptionResponse(
       text: text,

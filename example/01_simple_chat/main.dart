@@ -35,6 +35,7 @@ void main() async {
         perProviderConfig: {
           'openai': ProviderConfig(
             id: 'openai',
+            settings: {'defaultModel': 'gpt-5'},
             auth: ApiKeyAuth(apiKey: apiKey),
           ),
         },

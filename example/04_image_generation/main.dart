@@ -14,7 +14,7 @@ import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 ///
 /// **Prerequisites:**
 /// - Set `OPENAI_API_KEY` environment variable
-/// - Note: Image generation requires DALL-E access
+/// - Note: Image generation requires GPT Image 1 access
 ///
 /// **Run:**
 /// ```bash
@@ -59,7 +59,7 @@ void main() async {
         final response = await ai.generateImage(
           request: ImageRequest(
             prompt: prompt,
-            model: 'dall-e-3',
+            model: 'gpt-image-1',
             size: ImageSize.w1024h1024,
             n: 1,
             quality: 'standard',

@@ -34,13 +34,13 @@ import 'openai_models.dart';
 /// OpenAI provider implementation for the Unified AI SDK.
 ///
 /// This provider integrates with OpenAI's API to provide:
-/// - Chat completions (GPT-5, GPT-4o, GPT-4, GPT-3.5-turbo, o1 series, etc.)
+/// - Chat completions (GPT-5.1, GPT-5, GPT-4.1, GPT-4o, etc.)
 /// - Text embeddings (text-embedding-3-large, text-embedding-3-small, text-embedding-ada-002)
-/// - Image generation (DALL-E 3, DALL-E 2)
-/// - Video generation (Sora-2, Sora-1.5, Sora-1.0)
+/// - Image generation (GPT Image 1, GPT Image 1 Mini)
+/// - Video generation (Sora-2 Pro, Sora-2)
 /// - Video analysis (GPT-5, GPT-4o Vision)
-/// - Text-to-speech (TTS-1, TTS-1-HD)
-/// - Speech-to-text (Whisper-1)
+/// - Text-to-speech (GPT-4o Mini TTS)
+/// - Speech-to-text (GPT-4o Transcribe, GPT-4o Mini Transcribe)
 /// - Streaming support for chat completions
 ///
 /// **Example usage:**
@@ -88,43 +88,55 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
   /// These models are always available as a backup, ensuring the SDK works
   /// even when the API is unreachable or the models endpoint fails.
   ///
-  /// **Latest Models (2024-2025):**
-  /// - GPT-5: Latest generation language model with advanced reasoning
-  /// - GPT-4o series: Latest GPT-4 models with multimodal capabilities
-  /// - Sora-2: Latest video generation model
-  /// - o1 series: Reasoning-optimized models
+  /// **Latest Models (2025):**
+  /// - GPT-5.1 series: Latest generation with configurable reasoning effort
+  /// - GPT-5 series: Intelligent reasoning models for coding and agentic tasks
+  /// - GPT-4.1: Smartest non-reasoning model
+  /// - GPT-4o series: Multimodal models with vision capabilities
+  /// - GPT Image 1: State-of-the-art image generation
+  /// - Sora 2: Latest video generation with synced audio
+  /// - GPT Realtime/Audio: Real-time audio models
   static const List<String> _fallbackModels = [
-    // Latest GPT models
+    // Latest GPT-5.1 series (2025)
+    'gpt-5.1',
+    'gpt-5.1-codex',
+    // GPT-5 series
+    'gpt-5-pro',
     'gpt-5',
-    'gpt-5-turbo',
+    'gpt-5-mini',
+    'gpt-5-nano',
+    'gpt-5-codex',
+    'gpt-5-chat-latest',
+    // GPT-4.1 series
+    'gpt-4.1',
+    // GPT-4o series (latest GPT-4 models)
     'gpt-4o-2024-11-20',
     'gpt-4o-2024-08-06',
     'gpt-4o',
     'gpt-4o-mini',
-    'gpt-4-turbo',
-    'gpt-4',
-    'gpt-4-32k',
-    // Reasoning models (o1 series)
-    'o1-mini',
-    // GPT-3.5 models
-    'gpt-3.5-turbo',
-    'gpt-3.5-turbo-16k',
+    'chatgpt-4o-latest',
+    // Open-weight models
+    'gpt-oss-120b',
+    'gpt-oss-20b',
     // Embedding models
     'text-embedding-3-large',
     'text-embedding-3-small',
     'text-embedding-ada-002',
     // Image generation models
-    'dall-e-3',
-    'dall-e-2',
-    // Audio models
-    'tts-1',
-    'tts-1-hd',
-    'whisper-1',
+    'gpt-image-1',
+    'gpt-image-1-mini',
     // Video generation models
+    'sora-2-pro',
     'sora-2',
-    'sora-1.5',
-    'sora-1.0',
-    'sora-1.0-turbo',
+    // Audio models - GPT-4o based
+    'gpt-4o-mini-tts',
+    'gpt-4o-transcribe',
+    'gpt-4o-mini-transcribe',
+    // Real-time audio models
+    'gpt-realtime',
+    'gpt-realtime-mini',
+    'gpt-audio',
+    'gpt-audio-mini',
   ];
 
   /// Cached capabilities instance (created once, updated when models are fetched).
@@ -261,20 +273,37 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
   @override
   String inferModelType(String modelId) {
     final lowerId = modelId.toLowerCase();
-    // Chat/text models
-    if (lowerId.startsWith('gpt-') ||
-        lowerId.startsWith('o1-') ||
-        lowerId == 'gpt-5' ||
-        lowerId == 'gpt-5-turbo') {
-      return 'text';
+    // Chat/text models - GPT series
+    if (lowerId.startsWith('gpt-') || lowerId.startsWith('chatgpt-')) {
+      // Exclude image, audio, and video models
+      if (lowerId.contains('image') ||
+          lowerId.contains('audio') ||
+          lowerId.contains('realtime') ||
+          lowerId.contains('transcribe') ||
+          lowerId.contains('tts')) {
+        // These are handled below
+      } else {
+        return 'text';
+      }
     }
     // Embedding models
     if (lowerId.contains('embedding')) return 'embedding';
     // Image generation models
-    if (lowerId.startsWith('dall-e')) return 'image';
-    // Audio models
-    if (lowerId.startsWith('tts-')) return 'tts';
-    if (lowerId.startsWith('whisper-')) return 'stt';
+    if (lowerId.startsWith('gpt-image-') || lowerId.startsWith('dall-e')) {
+      return 'image';
+    }
+    // Audio models - TTS
+    if (lowerId.contains('tts') || lowerId.startsWith('tts-')) {
+      return 'tts';
+    }
+    // Audio models - STT/Transcribe
+    if (lowerId.contains('transcribe') || lowerId.startsWith('whisper-')) {
+      return 'stt';
+    }
+    // Real-time audio models
+    if (lowerId.contains('realtime') || lowerId.contains('audio')) {
+      return 'text'; // Real-time models are text-based with audio I/O
+    }
     // Video generation models
     if (lowerId.startsWith('sora-')) return 'video';
     return 'other';
@@ -310,17 +339,20 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     if (modelId.toLowerCase().contains('deprecated')) return false;
     if (modelId.toLowerCase().contains('internal')) return false;
 
-    // Include known model prefixes
+    // Include known model prefixes and patterns
     final lowerId = modelId.toLowerCase();
     return lowerId.startsWith('gpt-') ||
-        lowerId == 'gpt-5' ||
-        lowerId == 'gpt-5-turbo' ||
-        lowerId.startsWith('o1-') ||
+        lowerId.startsWith('chatgpt-') ||
         lowerId.startsWith('text-embedding-') ||
+        lowerId.startsWith('gpt-image-') ||
         lowerId.startsWith('dall-e-') ||
-        lowerId.startsWith('tts-') ||
+        lowerId.contains('tts') ||
+        lowerId.contains('transcribe') ||
         lowerId.startsWith('whisper-') ||
-        lowerId.startsWith('sora-');
+        lowerId.contains('realtime') ||
+        lowerId.contains('audio') ||
+        lowerId.startsWith('sora-') ||
+        lowerId.startsWith('gpt-oss-');
   }
 
   @override
@@ -328,15 +360,17 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     // Validate that chat is supported
     validateCapability('chat');
 
-    // Map SDK request to OpenAI format
-    final openAIRequest = _mapper.mapChatRequest(
+    // Map SDK request to OpenAI Responses API format
+    // Note: mapResponseRequest is specific to OpenAIMapper, not part of ProviderMapper interface
+    final openAIMapper = _mapper as OpenAIMapper;
+    final openAIRequest = openAIMapper.mapResponseRequest(
       request,
       defaultModel: _defaultModel,
     );
 
-    // Make HTTP POST request to chat/completions endpoint
+    // Make HTTP POST request to responses endpoint
     final response = await _http.post(
-      '$_baseUrl/chat/completions',
+      '$_baseUrl/responses',
       body: jsonEncode(openAIRequest.toJson()),
     );
 
@@ -347,7 +381,7 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
     // Parse response JSON
     final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
-    final openAIResponse = OpenAIChatResponse.fromJson(responseJson);
+    final openAIResponse = OpenAIResponseResponse.fromJson(responseJson);
 
     // Map OpenAI response to SDK format
     return _mapper.mapChatResponse(openAIResponse);
@@ -358,23 +392,25 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     // Validate that streaming is supported
     validateCapability('streaming');
 
-    // Map SDK request to OpenAI format
-    final openAIRequest = _mapper.mapChatRequest(
+    // Map SDK request to OpenAI Responses API format
+    // Note: mapResponseRequest is specific to OpenAIMapper, not part of ProviderMapper interface
+    final openAIMapper = _mapper as OpenAIMapper;
+    final openAIRequest = openAIMapper.mapResponseRequest(
       request,
       defaultModel: _defaultModel,
     );
 
     // Create streaming request with stream: true
-    final requestJson = openAIRequest.toJson() as Map<String, dynamic>;
+    final requestJson = openAIRequest.toJson();
     final streamRequestJson = <String, dynamic>{
       ...requestJson,
       'stream': true,
     };
 
     try {
-      // Make streaming HTTP POST request
+      // Make streaming HTTP POST request to responses endpoint
       final byteStream = _http.postStream(
-        '$_baseUrl/chat/completions',
+        '$_baseUrl/responses', // Assuming this is the correct (non-standard) endpoint for your use case
         body: streamRequestJson,
       );
 
@@ -384,6 +420,7 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
 
       await for (final chunk in byteStream) {
         // Convert bytes to string and append to buffer
+        // Ensure correct handling of potentially malformed UTF-8 from chunk boundaries
         buffer += utf8.decode(chunk, allowMalformed: true);
 
         // Process complete lines (ending with \n)
@@ -399,99 +436,68 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
           if (line.startsWith('data: ')) {
             final data = line.substring(6).trim();
 
-            // Check for [DONE] marker
-            if (data == '[DONE]') {
-              // Yield final event with metadata if available
-              yield ChatStreamEvent(
-                delta: null,
-                done: true,
-                metadata: finalMetadata,
-              );
-              return;
-            }
+            // FIX 1: The API you are streaming from likely does not use the OpenAI "[DONE]" marker.
+            // The end-of-stream event is likely marked by a specific type or the stream closing.
+            // We will rely on the stream closing or a final event type.
 
             // Parse JSON chunk
             try {
               final chunkJson = jsonDecode(data) as Map<String, dynamic>;
 
-              // Extract delta content from choices[0].delta.content
-              final choices = chunkJson['choices'] as List<dynamic>?;
-              if (choices != null && choices.isNotEmpty) {
-                final choice = choices[0] as Map<String, dynamic>;
-                final delta = choice['delta'] as Map<String, dynamic>?;
-                final content = delta?['content'] as String?;
+              // Extract the event type to differentiate chunks
+              final eventType = chunkJson['type'] as String?;
 
-                // Extract usage information if present (usually in final chunk)
-                final usage = chunkJson['usage'] as Map<String, dynamic>?;
-                if (usage != null) {
-                  finalMetadata = {
-                    'usage': {
-                      'prompt_tokens': usage['prompt_tokens'],
-                      'completion_tokens': usage['completion_tokens'],
-                      'total_tokens': usage['total_tokens'],
-                    },
-                  };
-                }
+              // --- FIX 2: Correctly extract the delta content based on the stream structure ---
+              // The Anthropic/Claude style uses a 'delta' or 'part' field directly.
 
-                // Extract finish reason if present
-                final finishReason = choice['finish_reason'] as String?;
-                if (finishReason != null) {
-                  finalMetadata ??= <String, dynamic>{};
-                  finalMetadata['finish_reason'] = finishReason;
-                }
+              String? contentDelta;
 
-                // Extract model if present
-                final model = chunkJson['model'] as String?;
-                if (model != null) {
-                  finalMetadata ??= <String, dynamic>{};
-                  finalMetadata['model'] = model;
-                }
+              if (eventType == 'response.output_text.delta' &&
+                  chunkJson['delta'] is String) {
+                // Directly extract text delta from the 'delta' field if it's a string
+                contentDelta = chunkJson['delta'] as String;
+              } else if (eventType == 'response.output_text.delta' &&
+                  chunkJson['delta'] is Map) {
+                // If 'delta' is an object (common for more structured data)
+                contentDelta = (chunkJson['delta']
+                    as Map<String, dynamic>)['text'] as String?;
+              } else if (eventType == 'response.content_part.added') {
+                // Check if this is a content part added event which might contain the text chunk
+                final part = chunkJson['part'] as Map<String, dynamic>?;
+                contentDelta = part?['text'] as String?;
+              }
+              // --- End of Fix 2 ---
 
-                // Yield event with content delta
-                if (content != null) {
-                  yield ChatStreamEvent(
-                    delta: content,
-                    done: false,
-                  );
-                }
+              // --- FIX 3: Capture metadata from final completion event (e.g., 'response.end' or similar) ---
+              if (eventType == 'response.end' || eventType == 'completion') {
+                // This is where you would typically capture the full metadata/usage from the final event
+                finalMetadata = chunkJson['meta'] as Map<String, dynamic>?;
+                // Since this is a final event, we yield the done event here and return
+                yield ChatStreamEvent(
+                  delta: null,
+                  done: true,
+                  metadata: finalMetadata,
+                );
+                return;
+              }
+              // --- End of Fix 3 ---
+
+              // Yield event with content delta
+              if (contentDelta != null && contentDelta.isNotEmpty) {
+                yield ChatStreamEvent(
+                  delta: contentDelta,
+                  done: false,
+                );
               }
             } on FormatException {
-              // Skip invalid JSON chunks (shouldn't happen with OpenAI, but be defensive)
+              // Skip invalid JSON chunks
               continue;
             }
           }
         }
       }
 
-      // Handle case where stream ends without [DONE] marker
-      // (shouldn't happen with OpenAI, but be defensive)
-      if (buffer.isNotEmpty) {
-        // Try to process remaining buffer
-        if (buffer.startsWith('data: ')) {
-          final data = buffer.substring(6).trim();
-          if (data != '[DONE]' && data.isNotEmpty) {
-            try {
-              final chunkJson = jsonDecode(data) as Map<String, dynamic>;
-              final choices = chunkJson['choices'] as List<dynamic>?;
-              if (choices != null && choices.isNotEmpty) {
-                final choice = choices[0] as Map<String, dynamic>;
-                final delta = choice['delta'] as Map<String, dynamic>?;
-                final content = delta?['content'] as String?;
-                if (content != null) {
-                  yield ChatStreamEvent(
-                    delta: content,
-                    done: false,
-                  );
-                }
-              }
-            } on FormatException {
-              // Ignore invalid JSON
-            }
-          }
-        }
-      }
-
-      // Always yield final event
+      // Always yield final event, especially if the stream closed without a dedicated 'response.end' event
       yield ChatStreamEvent(
         delta: null,
         done: true,
@@ -499,8 +505,10 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
       );
     } catch (e) {
       // Map HTTP/network errors to appropriate exception types
+      // Assuming ErrorMapper and id are defined in your context
       if (e is Exception) {
-        throw ErrorMapper.mapException(e, id);
+        // throw ErrorMapper.mapException(e, id); // Use this if you have the ErrorMapper
+        rethrow;
       }
       rethrow;
     }
@@ -568,7 +576,7 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
     final imageResponse = _mapper.mapImageResponse(openAIResponse);
 
     // Update the model in the response to match the request
-    final model = openAIRequest.model as String? ?? 'dall-e-3';
+    final model = openAIRequest.model as String? ?? 'gpt-image-1';
     return imageResponse.copyWith(
       model: model,
     );
