@@ -36,6 +36,10 @@ class ImageRequest {
   ///
   /// Specifies the output dimensions. Different providers support different
   /// sizes. Use [ImageSize] enum values for type-safe size specification.
+  ///
+  /// **Provider Support:**
+  /// - Supported: OpenAI
+  /// - Unsupported: xAI (parameter is ignored if provided)
   final ImageSize? size;
 
   /// Optional number of images to generate.
@@ -50,6 +54,10 @@ class ImageRequest {
   /// - "standard" or "standard" - Normal quality (faster, cheaper)
   /// - "hd" or "high" - High quality (slower, more expensive)
   /// - "ultra" - Ultra high quality (slowest, most expensive)
+  ///
+  /// **Provider Support:**
+  /// - Supported: OpenAI
+  /// - Unsupported: xAI (parameter is ignored if provided)
   final String? quality;
 
   /// Optional style setting for the generated image.
@@ -58,6 +66,10 @@ class ImageRequest {
   /// - "vivid" - More dramatic and saturated
   /// - "natural" - More natural and realistic
   /// - "artistic" - More artistic and stylized
+  ///
+  /// **Provider Support:**
+  /// - Supported: OpenAI
+  /// - Unsupported: xAI (parameter is ignored if provided)
   final String? style;
 
   /// Optional provider-specific configuration options.

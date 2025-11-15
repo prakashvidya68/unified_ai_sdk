@@ -33,13 +33,15 @@ import 'xai_models.dart';
 /// xAI (Grok) provider implementation for the Unified AI SDK.
 ///
 /// This provider integrates with xAI's Grok API to provide:
-/// - Chat completions (Grok-4, Grok-beta)
-/// - Image generation (FLUX.1)
+/// - Chat completions (Grok-4, Grok-4-fast, Grok-3, Grok-3-mini, Grok-code-fast-1)
+/// - Image generation (grok-2-image-1212)
+/// - Video analysis (grok-2-vision-1212)
 /// - Streaming support for chat completions
 ///
 /// **Key Features:**
 /// - Uses xAI's Chat Completions API (`/v1/chat/completions`)
-/// - Supports image generation via FLUX models
+/// - Supports image generation via grok-2-image-1212
+/// - Supports video analysis via grok-2-vision-1212
 /// - Uses `Authorization` header with Bearer token for authentication
 ///
 /// **Example usage:**
@@ -48,7 +50,7 @@ import 'xai_models.dart';
 ///   id: 'xai',
 ///   auth: ApiKeyAuth(apiKey: 'xai-...'),
 ///   settings: {
-///     'defaultModel': 'grok-4',
+///     'defaultModel': 'grok-4-0709',
 ///   },
 /// );
 ///
@@ -85,12 +87,17 @@ class XAIProvider extends AiProvider {
   /// These models are always available as a backup, ensuring the SDK works
   /// even when the API is unreachable or model fetching fails.
   static const List<String> _fallbackModels = [
-    'grok-4',
-    'grok-beta',
-    'grok-2-1212',
-    'grok-vision-beta',
-    'flux-pro',
-    'flux-dev',
+    // Chat/Text Models
+    'grok-4-0709',
+    'grok-4-fast-reasoning',
+    'grok-4-fast-non-reasoning',
+    'grok-3',
+    'grok-3-mini',
+    'grok-code-fast-1',
+    // Vision Models (for video/image analysis)
+    'grok-2-vision-1212',
+    // Image Generation Models
+    'grok-2-image-1212',
   ];
 
   /// Cached capabilities instance.
@@ -383,7 +390,7 @@ class XAIProvider extends AiProvider {
     ) as XAIImageRequest;
 
     // Make HTTP POST request to images/generations endpoint
-    // Note: xAI may use a different endpoint, adjust as needed
+    // xAI uses /v1/images/generations endpoint (similar to OpenAI)
     final response = await _http.post(
       '$_baseUrl/images/generations',
       body: jsonEncode(xaiRequest.toJson()),
@@ -404,7 +411,7 @@ class XAIProvider extends AiProvider {
     final imageResponse = _mapper.mapImageResponse(xaiResponse);
 
     // Update the model in the response to match the request
-    final model = xaiRequest.model ?? 'flux-pro';
+    final model = xaiRequest.model ?? 'grok-2-image-1212';
     return imageResponse.copyWith(
       model: model,
     );

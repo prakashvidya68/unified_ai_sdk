@@ -703,6 +703,17 @@ class OpenAIMapper implements ProviderMapper {
       );
     }
 
+    // GPT Image 1 models don't support response_format parameter
+    // They always return base64-encoded images
+    final isGptImage1 = model == 'gpt-image-1' || model == 'gpt-image-1-mini';
+    final String? responseFormat;
+    if (isGptImage1) {
+      responseFormat = null; // Don't include response_format for GPT Image 1
+    } else {
+      responseFormat = openaiOptions['response_format'] as String? ??
+          openaiOptions['responseFormat'] as String?;
+    }
+
     return OpenAIImageRequest(
       prompt: request.prompt,
       model: model,
@@ -710,8 +721,7 @@ class OpenAIMapper implements ProviderMapper {
       size: sizeString,
       quality: request.quality ?? openaiOptions['quality'] as String?,
       style: request.style ?? openaiOptions['style'] as String?,
-      responseFormat: openaiOptions['response_format'] as String? ??
-          openaiOptions['responseFormat'] as String?,
+      responseFormat: responseFormat,
       user: openaiOptions['user'] as String?,
     );
   }

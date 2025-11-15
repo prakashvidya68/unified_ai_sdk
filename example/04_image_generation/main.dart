@@ -6,41 +6,62 @@ import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 
 /// Image Generation Example
 ///
-/// Demonstrates AI-powered image generation.
+/// Demonstrates AI-powered image generation with multiple providers.
 /// Shows how to:
 /// - Generate images from text prompts
-/// - Configure image size and quality
+/// - Use different providers (OpenAI, xAI)
 /// - Access generated image URLs
 ///
 /// **Prerequisites:**
-/// - Set `OPENAI_API_KEY` environment variable
-/// - Note: Image generation requires GPT Image 1 access
+/// - Set `OPENAI_API_KEY` or `XAI_API_KEY` environment variable
+/// - For OpenAI: Image generation requires GPT Image 1 access
+/// - For xAI: Uses grok-2-image-1212 model
 ///
 /// **Run:**
 /// ```bash
 /// dart run example/04_image_generation/main.dart
 /// ```
 void main() async {
-  final apiKey = Platform.environment['OPENAI_API_KEY'];
-  if (apiKey == null || apiKey.isEmpty) {
-    print('❌ Error: OPENAI_API_KEY not set');
+  final openaiKey = Platform.environment['OPENAI_API_KEY'];
+  final xaiKey = Platform.environment['XAI_API_KEY'];
+
+  if ((openaiKey == null || openaiKey.isEmpty) &&
+      (xaiKey == null || xaiKey.isEmpty)) {
+    print('❌ Error: Either OPENAI_API_KEY or XAI_API_KEY must be set');
     exit(1);
   }
 
   try {
     print('🚀 Initializing SDK...');
+    final perProviderConfig = <String, ProviderConfig>{};
+
+    if (openaiKey != null && openaiKey.isNotEmpty) {
+      perProviderConfig['openai'] = ProviderConfig(
+        id: 'openai',
+        auth: ApiKeyAuth(apiKey: openaiKey),
+      );
+    }
+
+    if (xaiKey != null && xaiKey.isNotEmpty) {
+      perProviderConfig['xai'] = ProviderConfig(
+        id: 'xai',
+        auth: ApiKeyAuth(apiKey: xaiKey),
+        settings: {
+          'defaultModel': 'grok-2-image-1212',
+        },
+      );
+    }
+
+    // Use the first available provider as default
+    final defaultProvider = perProviderConfig.keys.first;
+
     await UnifiedAI.init(
       UnifiedAIConfig(
-        defaultProvider: 'openai',
-        perProviderConfig: {
-          'openai': ProviderConfig(
-            id: 'openai',
-            auth: ApiKeyAuth(apiKey: apiKey),
-          ),
-        },
+        defaultProvider: defaultProvider,
+        perProviderConfig: perProviderConfig,
       ),
     );
-    print('✅ SDK initialized\n');
+    print('✅ SDK initialized with provider: $defaultProvider\n');
 
     final ai = UnifiedAI.instance;
 
@@ -56,15 +77,28 @@ void main() async {
       print('   Prompt: "$prompt"\n');
 
       try {
-        final response = await ai.generateImage(
-          request: ImageRequest(
+        // Build request based on provider
+        ImageRequest request;
+        if (defaultProvider == 'xai') {
+          // xAI only supports: prompt, model, n, response_format
+          // size, quality, and style are not supported
+          request = ImageRequest(
+            prompt: prompt,
+            model: 'grok-2-image-1212',
+            n: 1,
+          );
+        } else {
+          // OpenAI supports all parameters
+          request = ImageRequest(
             prompt: prompt,
             model: 'gpt-image-1',
             size: ImageSize.w1024h1024,
             n: 1,
             quality: 'standard',
-          ),
-        );
+          );
+        }
+
+        final response = await ai.generateImage(request: request);
 
         print('✅ Image generated successfully!');
         for (final asset in response.assets) {
@@ -75,7 +109,8 @@ void main() async {
                 '   📷 Base64 data available (${asset.base64!.length} bytes)');
           }
         }
-        print('   Provider: ${response.provider}\n');
+        print('   Provider: ${response.provider}');
+        print('   Model: ${response.model}\n');
       } on CapabilityError catch (e) {
         print('❌ Capability error: ${e.message}');
         print('   Make sure your provider supports image generation\n');

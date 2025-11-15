@@ -237,8 +237,8 @@ class XAIMapper implements ProviderMapper {
     ImageRequest request, {
     String? defaultModel,
   }) {
-    // Determine model - default to flux-pro if not specified
-    final model = request.model ?? defaultModel ?? 'flux-pro';
+    // Determine model - default to grok-2-image-1212 if not specified
+    final model = request.model ?? defaultModel ?? 'grok-2-image-1212';
 
     // Convert ImageSize enum to string format
     String? sizeString;
@@ -249,6 +249,10 @@ class XAIMapper implements ProviderMapper {
     // Extract xAI-specific options
     final xaiOptions = request.providerOptions?['xai'] ?? <String, dynamic>{};
 
+    // Note: xAI API only supports: prompt, model, n, and response_format.
+    // We store size, quality, and style for SDK compatibility but they won't
+    // be sent to the API (excluded in toJson()).
+    // xAI REST API uses 'response_format' (Python SDK uses 'image_format' as alias).
     return XAIImageRequest(
       prompt: request.prompt,
       model: model,
@@ -257,7 +261,9 @@ class XAIMapper implements ProviderMapper {
       quality: request.quality ?? xaiOptions['quality'] as String?,
       style: request.style ?? xaiOptions['style'] as String?,
       responseFormat: xaiOptions['response_format'] as String? ??
-          xaiOptions['responseFormat'] as String?,
+          xaiOptions['responseFormat'] as String? ??
+          xaiOptions['image_format'] as String? ??
+          xaiOptions['imageFormat'] as String?,
     );
   }
 
@@ -275,7 +281,7 @@ class XAIMapper implements ProviderMapper {
     // Extract model from response (if available) or use default
     // xAI may not return the model in the response, so we'll use a default
     final model =
-        'flux-pro'; // Default, could be enhanced to track from request
+        'grok-2-image-1212'; // Default, could be enhanced to track from request
 
     // Build metadata from xAI-specific fields
     final metadata = <String, dynamic>{
@@ -356,8 +362,9 @@ class XAIMapper implements ProviderMapper {
     VideoAnalysisRequest request, {
     String? defaultModel,
   }) {
-    // Determine model - default to grok-vision-beta if not specified
-    final model = request.model ?? defaultModel ?? 'grok-vision-beta';
+    // Determine model - default to grok-2-vision-1212 if not specified
+    // For cost efficiency, could also use grok-4-fast-reasoning
+    final model = request.model ?? defaultModel ?? 'grok-2-vision-1212';
     if (model.isEmpty) {
       throw ClientError(
         message:

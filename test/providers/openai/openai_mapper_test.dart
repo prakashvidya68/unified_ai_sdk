@@ -4,6 +4,7 @@ import 'package:unified_ai_sdk/src/models/base_enums.dart';
 import 'package:unified_ai_sdk/src/models/common/message.dart';
 import 'package:unified_ai_sdk/src/models/requests/chat_request.dart';
 import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
+import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
 import 'package:unified_ai_sdk/src/providers/openai/openai_mapper.dart';
 import 'package:unified_ai_sdk/src/providers/openai/openai_models.dart';
 
@@ -583,6 +584,58 @@ void main() {
         );
         expect(_mapper.mapChatResponse(response2).choices.first.message.role,
             equals(Role.function));
+      });
+    });
+
+    group('mapImageRequest', () {
+      test('should exclude response_format for GPT Image 1 models', () {
+        final sdkRequest = ImageRequest(
+          prompt: 'A beautiful sunset',
+          model: 'gpt-image-1-mini',
+          providerOptions: {
+            'openai': {'response_format': 'b64_json'},
+          },
+        );
+
+        final openaiRequest = _mapper.mapImageRequest(sdkRequest);
+        final json = openaiRequest.toJson();
+
+        // GPT Image 1 models don't support response_format parameter
+        expect(json.containsKey('response_format'), isFalse);
+        expect(openaiRequest.responseFormat, isNull);
+      });
+
+      test('should exclude response_format for gpt-image-1 model', () {
+        final sdkRequest = ImageRequest(
+          prompt: 'A cat',
+          model: 'gpt-image-1',
+          providerOptions: {
+            'openai': {'response_format': 'url'},
+          },
+        );
+
+        final openaiRequest = _mapper.mapImageRequest(sdkRequest);
+        final json = openaiRequest.toJson();
+
+        expect(json.containsKey('response_format'), isFalse);
+        expect(openaiRequest.responseFormat, isNull);
+      });
+
+      test('should include response_format for DALL-E models', () {
+        final sdkRequest = ImageRequest(
+          prompt: 'A beautiful landscape',
+          model: 'dall-e-3',
+          providerOptions: {
+            'openai': {'response_format': 'b64_json'},
+          },
+        );
+
+        final openaiRequest = _mapper.mapImageRequest(sdkRequest);
+        final json = openaiRequest.toJson();
+
+        expect(json.containsKey('response_format'), isTrue);
+        expect(json['response_format'], equals('b64_json'));
+        expect(openaiRequest.responseFormat, equals('b64_json'));
       });
     });
   });

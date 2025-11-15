@@ -64,13 +64,32 @@ class ErrorMapper {
       final json = jsonDecode(body) as Map<String, dynamic>?;
       if (json != null) {
         // Try common error response formats
-        final errorObj = json['error'] as Map<String, dynamic>?;
+        final errorObj = json['error'];
         if (errorObj != null) {
-          message = errorObj['message'] as String? ?? message;
-          errorCode =
-              errorObj['type'] as String? ?? errorObj['code'] as String?;
-          providerError = errorObj;
-        } else if (json.containsKey('message')) {
+          if (errorObj is String) {
+            message = errorObj;
+          } else if (errorObj is Map) {
+            message = errorObj['message'] as String? ?? message;
+            errorCode = errorObj['code'] is String
+                ? (errorObj['code'] as String)
+                : errorCode;
+            providerError = errorObj;
+          }
+        }
+
+        // Check for direct 'code' and 'error' fields (xAI format)
+        if (json.containsKey('code')) {
+          final codeValue = json['code'];
+          errorCode = codeValue is String
+              ? codeValue
+              : (codeValue is int ? codeValue.toString() : errorCode);
+        }
+        if (json.containsKey('error') && json['error'] is String) {
+          message = json['error'] as String;
+        }
+
+        // Check for 'message' field
+        if (json.containsKey('message')) {
           message = json['message'] as String? ?? message;
         }
 

@@ -21,7 +21,7 @@ import '../../error/error_types.dart';
 class XAIChatRequest {
   /// ID of the model to use.
   ///
-  /// Examples: "grok-4", "grok-beta", "grok-2-1212"
+  /// Examples: "grok-4-0709", "grok-4-fast-reasoning", "grok-3", "grok-3-mini", "grok-code-fast-1"
   final String model;
 
   /// List of messages comprising the conversation.
@@ -273,14 +273,14 @@ class XAIUsage {
 
 /// Represents an image generation request in xAI's API format.
 ///
-/// xAI supports image generation through FLUX models.
+/// xAI supports image generation through grok-2-image-1212 model.
 class XAIImageRequest {
   /// The text prompt describing the image to generate.
   final String prompt;
 
   /// The model to use for image generation.
   ///
-  /// Examples: "flux-pro", "flux-dev"
+  /// Examples: "grok-2-image-1212"
   final String? model;
 
   /// The number of images to generate.
@@ -289,12 +289,24 @@ class XAIImageRequest {
   /// The size of the generated images.
   ///
   /// Format: "WIDTHxHEIGHT" (e.g., "1024x1024")
+  ///
+  /// Note: This field is stored but not sent to the xAI API as it does not
+  /// support the size parameter. The field is kept for compatibility with
+  /// the unified SDK interface.
   final String? size;
 
   /// The quality of the image that will be generated.
+  ///
+  /// Note: This field is stored but not sent to the xAI API as it does not
+  /// support the quality parameter. The field is kept for compatibility with
+  /// the unified SDK interface.
   final String? quality;
 
   /// The style of the generated images.
+  ///
+  /// Note: This field is stored but not sent to the xAI API as it does not
+  /// support the style parameter. The field is kept for compatibility with
+  /// the unified SDK interface.
   final String? style;
 
   /// The format in which the generated images are returned.
@@ -314,14 +326,16 @@ class XAIImageRequest {
   }) : assert(prompt.isNotEmpty, 'prompt must not be empty');
 
   /// Converts this request to a JSON map matching xAI's API format.
+  ///
+  /// Note: xAI API only supports: prompt, model, n, and response_format.
+  /// Parameters like size, quality, and style are not supported and are excluded
+  /// from the JSON output even if set in the model.
   Map<String, dynamic> toJson() {
     return {
       'prompt': prompt,
       if (model != null) 'model': model,
       if (n != null) 'n': n,
-      if (size != null) 'size': size,
-      if (quality != null) 'quality': quality,
-      if (style != null) 'style': style,
+      // Note: 'size', 'quality', and 'style' are not supported by xAI API
       if (responseFormat != null) 'response_format': responseFormat,
     };
   }
@@ -335,14 +349,17 @@ class XAIImageRequest {
       size: json['size'] as String?,
       quality: json['quality'] as String?,
       style: json['style'] as String?,
+      // xAI REST API uses 'response_format', but Python SDK uses 'image_format' as alias
       responseFormat: json['response_format'] as String? ??
-          json['responseFormat'] as String?,
+          json['responseFormat'] as String? ??
+          json['image_format'] as String? ??
+          json['imageFormat'] as String?,
     );
   }
 
   @override
   String toString() {
-    return 'XAIImageRequest(prompt: ${prompt.length > 50 ? "${prompt.substring(0, 50)}..." : prompt}, model: ${model ?? "flux-pro"}, size: ${size ?? "1024x1024"})';
+    return 'XAIImageRequest(prompt: ${prompt.length > 50 ? "${prompt.substring(0, 50)}..." : prompt}, model: ${model ?? "grok-2-image-1212"}, size: ${size ?? "1024x1024"})';
   }
 }
 
@@ -363,10 +380,44 @@ class XAIImageResponse {
   });
 
   /// Creates an [XAIImageResponse] from a JSON map.
+  ///
+  /// xAI API returns responses in the format:
+  /// ```json
+  /// {
+  ///   "created": 1234567890,
+  ///   "data": [
+  ///     {
+  ///       "url": "https://...",
+  ///       "revised_prompt": "..."
+  ///     }
+  ///   ]
+  /// }
+  /// ```
   factory XAIImageResponse.fromJson(Map<String, dynamic> json) {
+    // Handle case where 'created' might be missing (use current timestamp as fallback)
+    final created = json['created'] as int? ??
+        DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    // Handle 'data' array - xAI returns images in a 'data' array
+    final dataList = json['data'] as List<dynamic>?;
+    if (dataList == null || dataList.isEmpty) {
+      // If no 'data' array, check if response is a single image object
+      // (some APIs might return a single object instead of an array)
+      if (json.containsKey('url') || json.containsKey('b64_json')) {
+        return XAIImageResponse(
+          created: created,
+          data: [XAIImageData.fromJson(json)],
+        );
+      }
+      throw ClientError(
+        message: 'Missing required field: data',
+        code: 'INVALID_RESPONSE',
+      );
+    }
+
     return XAIImageResponse(
-      created: json['created'] as int,
-      data: (json['data'] as List)
+      created: created,
+      data: dataList
           .map((e) => XAIImageData.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
