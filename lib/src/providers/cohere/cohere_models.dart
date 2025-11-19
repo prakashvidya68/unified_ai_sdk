@@ -17,12 +17,12 @@ import '../../error/error_types.dart';
 
 /// Represents an embedding request in Cohere API format.
 ///
-/// This model matches the exact structure expected by Cohere's `/v1/embed` endpoint.
+/// This model matches the exact structure expected by Cohere's `/v2/embed` endpoint.
 ///
 /// **Key differences from OpenAI:**
 /// - Uses "texts" array (not "input")
 /// - Supports "input_type" parameter (search_document, search_query, classification, etc.)
-/// - Supports "embedding_types" array (float, int8, uint8, binary, ubinary)
+/// - Requires "embedding_types" array (float, int8, uint8, binary, ubinary) - mandatory in v2
 /// - Supports "truncate" parameter (NONE, START, END)
 ///
 /// **Cohere API Reference:**
@@ -45,13 +45,15 @@ class CohereEmbeddingRequest {
   /// - "search_query": For search queries
   /// - "classification": For classification tasks
   /// - "clustering": For clustering tasks
-  final String? inputType;
+  ///
+  /// **Note:** Required in v2 API. Must be provided for all requests.
+  final String inputType;
 
   /// Types of embeddings to return.
   ///
   /// Can include: "float", "int8", "uint8", "binary", "ubinary"
-  /// Defaults to ["float"] if not specified.
-  final List<String>? embeddingTypes;
+  /// Required in v2 API.
+  final List<String> embeddingTypes;
 
   /// Truncation strategy for long texts.
   ///
@@ -62,14 +64,16 @@ class CohereEmbeddingRequest {
 
   /// Creates a new [CohereEmbeddingRequest] instance.
   ///
-  /// [texts] is required and must not be empty.
+  /// [texts], [inputType], and [embeddingTypes] are required and must not be empty.
   CohereEmbeddingRequest({
     required this.texts,
     this.model,
-    this.inputType,
-    this.embeddingTypes,
+    required this.inputType,
+    required this.embeddingTypes,
     this.truncate,
   })  : assert(texts.isNotEmpty, 'texts must not be empty'),
+        assert(inputType.isNotEmpty, 'inputType must not be empty'),
+        assert(embeddingTypes.isNotEmpty, 'embeddingTypes must not be empty'),
         assert(
           truncate == null ||
               truncate == 'NONE' ||
@@ -85,8 +89,8 @@ class CohereEmbeddingRequest {
     return {
       'texts': texts,
       if (model != null) 'model': model,
-      if (inputType != null) 'input_type': inputType,
-      if (embeddingTypes != null) 'embedding_types': embeddingTypes,
+      'input_type': inputType,
+      'embedding_types': embeddingTypes,
       if (truncate != null) 'truncate': truncate,
     };
   }
@@ -103,13 +107,27 @@ class CohereEmbeddingRequest {
       );
     }
 
+    final embeddingTypes = json['embedding_types'] as List<dynamic>?;
+    if (embeddingTypes == null || embeddingTypes.isEmpty) {
+      throw ClientError(
+        message: 'Missing or empty required field: embedding_types',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    final inputType = json['input_type'] as String?;
+    if (inputType == null || inputType.isEmpty) {
+      throw ClientError(
+        message: 'Missing or empty required field: input_type',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
     return CohereEmbeddingRequest(
       texts: texts.map((e) => e.toString()).toList(),
       model: json['model'] as String?,
-      inputType: json['input_type'] as String?,
-      embeddingTypes: json['embedding_types'] != null
-          ? List<String>.from(json['embedding_types'] as List)
-          : null,
+      inputType: inputType,
+      embeddingTypes: List<String>.from(embeddingTypes),
       truncate: json['truncate'] as String?,
     );
   }
@@ -136,7 +154,7 @@ class CohereEmbeddingRequest {
       Object.hashAll(texts),
       model,
       inputType,
-      Object.hashAll(embeddingTypes ?? []),
+      Object.hashAll(embeddingTypes),
       truncate,
     );
   }
@@ -272,11 +290,13 @@ class CohereUsage {
 
 /// Represents an embedding response in Cohere API format.
 ///
-/// This model matches the exact structure returned by Cohere's `/v1/embed` endpoint.
+/// This model matches the exact structure returned by Cohere's `/v2/embed` endpoint.
+/// v2 API returns embeddings organized by type (e.g., {"float": [[...], [...]]}).
 class CohereEmbeddingResponse {
   /// List of embedding vectors, one for each input text.
   ///
   /// The order matches the order of inputs in the original request.
+  /// Extracted from the embeddings object (e.g., embeddings['float']).
   final List<List<double>> embeddings;
 
   /// The model identifier used for this embedding generation.
@@ -297,24 +317,77 @@ class CohereEmbeddingResponse {
   /// Creates a [CohereEmbeddingResponse] from a JSON map.
   ///
   /// Parses the JSON representation of a response into a [CohereEmbeddingResponse] object.
+  /// Handles both v1 format (embeddings as array) and v2 format (embeddings as object by type).
   factory CohereEmbeddingResponse.fromJson(Map<String, dynamic> json) {
-    final embeddings = json['embeddings'] as List<dynamic>?;
-    if (embeddings == null || embeddings.isEmpty) {
+    final embeddingsData = json['embeddings'];
+    List<List<double>> embeddings;
+
+    if (embeddingsData is Map<String, dynamic>) {
+      // v2 format: embeddings is an object with type keys (e.g., {"float": [[...], [...]]})
+      // Extract the first available embedding type (usually "float")
+      if (embeddingsData.isEmpty) {
+        throw ClientError(
+          message: 'Missing or empty required field: embeddings',
+          code: 'INVALID_RESPONSE',
+        );
+      }
+
+      // Get the first embedding type (typically "float")
+      final firstType = embeddingsData.keys.first;
+      final typeEmbeddings = embeddingsData[firstType] as List<dynamic>?;
+
+      if (typeEmbeddings == null || typeEmbeddings.isEmpty) {
+        throw ClientError(
+          message: 'Missing or empty embeddings for type: $firstType',
+          code: 'INVALID_RESPONSE',
+        );
+      }
+
+      embeddings = typeEmbeddings
+          .map((e) =>
+              (e as List<dynamic>).map((v) => (v as num).toDouble()).toList())
+          .toList();
+    } else if (embeddingsData is List<dynamic>) {
+      // v1 format: embeddings is a direct array
+      if (embeddingsData.isEmpty) {
+        throw ClientError(
+          message: 'Missing or empty required field: embeddings',
+          code: 'INVALID_RESPONSE',
+        );
+      }
+
+      embeddings = embeddingsData
+          .map((e) =>
+              (e as List<dynamic>).map((v) => (v as num).toDouble()).toList())
+          .toList();
+    } else {
       throw ClientError(
-        message: 'Missing or empty required field: embeddings',
+        message: 'Invalid embeddings format: expected object or array',
         code: 'INVALID_RESPONSE',
       );
     }
 
+    // Extract usage from meta object
+    CohereUsage? usage;
+    final meta = json['meta'] as Map<String, dynamic>?;
+    if (meta != null) {
+      // v2 uses meta.billed_units for usage
+      final billedUnits = meta['billed_units'] as Map<String, dynamic>?;
+      if (billedUnits != null && billedUnits['input_tokens'] != null) {
+        usage = CohereUsage(
+          tokens: billedUnits['input_tokens'] as int?,
+        );
+      } else if (meta['tokens'] != null) {
+        // Fallback to v1 format
+        usage = CohereUsage.fromJson(meta);
+      }
+    }
+
     return CohereEmbeddingResponse(
-      embeddings: embeddings
-          .map((e) =>
-              (e as List<dynamic>).map((v) => (v as num).toDouble()).toList())
-          .toList(),
-      model: json['id'] as String?, // Cohere uses 'id' for model identifier
-      usage: json['meta'] != null && json['meta'] is Map<String, dynamic>
-          ? CohereUsage.fromJson(json['meta'] as Map<String, dynamic>)
-          : null,
+      embeddings: embeddings,
+      model:
+          json['id'] as String?, // Cohere v2 uses 'id' for response identifier
+      usage: usage,
     );
   }
 
@@ -368,20 +441,21 @@ class CohereEmbeddingResponse {
 
 /// Represents a chat completion request in Cohere API format.
 ///
-/// This model matches the exact structure expected by Cohere's `/v1/chat` endpoint.
+/// This model matches the exact structure expected by Cohere's `/v2/chat` endpoint.
 ///
 /// **Cohere API Reference:**
 /// https://docs.cohere.com/reference/chat
 class CohereChatRequest {
   /// The model to use for chat completion.
   ///
-  /// Examples: "command-r-plus", "command-r", "command"
-  final String? model;
+  /// Examples: "command-r-plus", "command-r", "command-a-03-2025"
+  final String model;
 
   /// List of messages in the conversation.
   ///
-  /// Each message has a role ("user", "assistant", "system") and content.
-  final List<Map<String, dynamic>> message;
+  /// Each message has a role ("user", "assistant", "system", "tool") and content.
+  /// v2 API uses "messages" array (not "message").
+  final List<Map<String, dynamic>> messages;
 
   /// Optional conversation ID for maintaining context.
   final String? conversationId;
@@ -393,6 +467,9 @@ class CohereChatRequest {
   final List<Map<String, dynamic>>? tools;
 
   /// Optional tool choice configuration.
+  ///
+  /// Used to control whether or not the model will be forced to use a tool.
+  /// Values: "REQUIRED", "NONE", or null (model chooses).
   final dynamic toolChoice;
 
   /// Optional temperature for sampling.
@@ -419,13 +496,43 @@ class CohereChatRequest {
   /// Whether to stream the response.
   final bool? stream;
 
-  /// Optional preamble override.
-  final String? preambleOverride;
+  /// Optional response format configuration.
+  ///
+  /// Can force JSON output: {"type": "json_object"} or provide JSON schema.
+  final Map<String, dynamic>? responseFormat;
+
+  /// Optional safety mode.
+  ///
+  /// Values: "CONTEXTUAL", "STRICT", "OFF"
+  final String? safetyMode;
+
+  /// Optional strict tools mode.
+  ///
+  /// When true, tool calls must follow tool definition strictly.
+  final bool? strictTools;
+
+  /// Optional thinking configuration.
+  ///
+  /// Configuration for reasoning features.
+  final Map<String, dynamic>? thinking;
+
+  /// Optional priority for request handling.
+  ///
+  /// Lower values mean earlier handling (0 is highest priority).
+  final int? priority;
+
+  /// Optional seed for deterministic generation.
+  final int? seed;
+
+  /// Optional logprobs flag.
+  ///
+  /// When true, log probabilities of generated tokens are included.
+  final bool? logprobs;
 
   /// Creates a new [CohereChatRequest] instance.
   CohereChatRequest({
-    this.model,
-    required this.message,
+    required this.model,
+    required this.messages,
     this.conversationId,
     this.documents,
     this.tools,
@@ -438,14 +545,20 @@ class CohereChatRequest {
     this.frequencyPenalty,
     this.presencePenalty,
     this.stream,
-    this.preambleOverride,
-  }) : assert(message.isNotEmpty, 'message must not be empty');
+    this.responseFormat,
+    this.safetyMode,
+    this.strictTools,
+    this.thinking,
+    this.priority,
+    this.seed,
+    this.logprobs,
+  }) : assert(messages.isNotEmpty, 'messages must not be empty');
 
   /// Converts this request to a JSON map.
   Map<String, dynamic> toJson() {
     return {
-      if (model != null) 'model': model,
-      'message': message,
+      'model': model,
+      'messages': messages,
       if (conversationId != null) 'conversation_id': conversationId,
       if (documents != null && documents!.isNotEmpty) 'documents': documents,
       if (tools != null && tools!.isNotEmpty) 'tools': tools,
@@ -459,24 +572,38 @@ class CohereChatRequest {
       if (frequencyPenalty != null) 'frequency_penalty': frequencyPenalty,
       if (presencePenalty != null) 'presence_penalty': presencePenalty,
       if (stream == true) 'stream': stream,
-      if (preambleOverride != null) 'preamble_override': preambleOverride,
+      if (responseFormat != null) 'response_format': responseFormat,
+      if (safetyMode != null) 'safety_mode': safetyMode,
+      if (strictTools != null) 'strict_tools': strictTools,
+      if (thinking != null) 'thinking': thinking,
+      if (priority != null) 'priority': priority,
+      if (seed != null) 'seed': seed,
+      if (logprobs != null) 'logprobs': logprobs,
     };
   }
 
   /// Creates a [CohereChatRequest] from a JSON map.
   factory CohereChatRequest.fromJson(Map<String, dynamic> json) {
-    final message = json['message'] as List<dynamic>?;
-    if (message == null || message.isEmpty) {
+    final messages = json['messages'] as List<dynamic>?;
+    if (messages == null || messages.isEmpty) {
       throw ClientError(
-        message: 'Missing or empty required field: message',
+        message: 'Missing or empty required field: messages',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    final model = json['model'] as String?;
+    if (model == null || model.isEmpty) {
+      throw ClientError(
+        message: 'Missing required field: model',
         code: 'INVALID_REQUEST',
       );
     }
 
     return CohereChatRequest(
-      model: json['model'] as String?,
-      message: List<Map<String, dynamic>>.from(
-        message.map((m) => m as Map<String, dynamic>),
+      model: model,
+      messages: List<Map<String, dynamic>>.from(
+        messages.map((m) => m as Map<String, dynamic>),
       ),
       conversationId: json['conversation_id'] as String?,
       documents: json['documents'] != null
@@ -500,61 +627,273 @@ class CohereChatRequest {
       frequencyPenalty: json['frequency_penalty'] as double?,
       presencePenalty: json['presence_penalty'] as double?,
       stream: json['stream'] as bool?,
-      preambleOverride: json['preamble_override'] as String?,
+      responseFormat: json['response_format'] != null
+          ? Map<String, dynamic>.from(json['response_format'] as Map)
+          : null,
+      safetyMode: json['safety_mode'] as String?,
+      strictTools: json['strict_tools'] as bool?,
+      thinking: json['thinking'] != null
+          ? Map<String, dynamic>.from(json['thinking'] as Map)
+          : null,
+      priority: json['priority'] as int?,
+      seed: json['seed'] as int?,
+      logprobs: json['logprobs'] as bool?,
     );
   }
 }
 
 /// Represents a chat completion response in Cohere API format.
 ///
-/// This model matches the exact structure returned by Cohere's `/v1/chat` endpoint.
+/// This model matches the exact structure returned by Cohere's `/v2/chat` endpoint.
 class CohereChatResponse {
-  /// The generated text response.
-  final String text;
+  /// Unique identifier for the generated reply.
+  final String id;
 
-  /// The model used for generation.
-  final String? model;
+  /// The message object containing the response.
+  ///
+  /// v2 API uses a message object with content array instead of text string.
+  final Map<String, dynamic> message;
 
-  /// Optional conversation ID.
-  final String? conversationId;
-
-  /// Optional finish reason.
+  /// The finish reason for the generation.
+  ///
+  /// Values: "COMPLETE", "MAX_TOKENS", "STOP_SEQUENCE", "TOOL_CALL", "ERROR", "TIMEOUT"
   final String? finishReason;
 
-  /// Optional citations.
-  final List<Map<String, dynamic>>? citations;
-
-  /// Optional documents used.
-  final List<Map<String, dynamic>>? documents;
-
-  /// Optional search results.
-  final List<Map<String, dynamic>>? searchResults;
-
-  /// Optional search queries.
-  final List<Map<String, dynamic>>? searchQueries;
-
-  /// Optional tool calls.
-  final List<Map<String, dynamic>>? toolCalls;
-
   /// Optional usage statistics.
-  final CohereUsage? usage;
+  final Map<String, dynamic>? usage;
+
+  /// Optional log probabilities.
+  final List<Map<String, dynamic>>? logprobs;
 
   /// Creates a new [CohereChatResponse] instance.
   CohereChatResponse({
-    required this.text,
-    this.model,
-    this.conversationId,
+    required this.id,
+    required this.message,
     this.finishReason,
-    this.citations,
-    this.documents,
-    this.searchResults,
-    this.searchQueries,
-    this.toolCalls,
     this.usage,
+    this.logprobs,
   });
 
   /// Creates a [CohereChatResponse] from a JSON map.
   factory CohereChatResponse.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String?;
+    if (id == null) {
+      throw ClientError(
+        message: 'Missing required field: id',
+        code: 'INVALID_RESPONSE',
+      );
+    }
+
+    final message = json['message'] as Map<String, dynamic>?;
+    if (message == null) {
+      throw ClientError(
+        message: 'Missing required field: message',
+        code: 'INVALID_RESPONSE',
+      );
+    }
+
+    return CohereChatResponse(
+      id: id,
+      message: message,
+      finishReason: json['finish_reason'] as String?,
+      usage: json['usage'] != null && json['usage'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(json['usage'] as Map)
+          : null,
+      logprobs: json['logprobs'] != null
+          ? List<Map<String, dynamic>>.from(
+              (json['logprobs'] as List).map((l) => l as Map<String, dynamic>),
+            )
+          : null,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'message': message,
+      if (finishReason != null) 'finish_reason': finishReason,
+      if (usage != null) 'usage': usage,
+      if (logprobs != null) 'logprobs': logprobs,
+    };
+  }
+
+  /// Helper method to extract text content from message.
+  ///
+  /// v2 API uses message.content which can be a string or array of content blocks.
+  String getText() {
+    final content = message['content'];
+    if (content is String) {
+      return content;
+    } else if (content is List) {
+      // Content is an array of content blocks
+      final textParts = <String>[];
+      for (final block in content) {
+        if (block is Map<String, dynamic>) {
+          if (block['type'] == 'text' && block['text'] is String) {
+            textParts.add(block['text'] as String);
+          }
+        } else if (block is String) {
+          textParts.add(block);
+        }
+      }
+      return textParts.join('');
+    }
+    return '';
+  }
+}
+
+/// Represents a tokenize request in Cohere API format.
+///
+/// This model matches the exact structure expected by Cohere's `/v1/tokenize` endpoint.
+///
+/// **Cohere API Reference:**
+/// https://docs.cohere.com/reference/tokenize
+class CohereTokenizeRequest {
+  /// The text to tokenize.
+  final String text;
+
+  /// Optional model identifier.
+  ///
+  /// If not specified, uses the default tokenizer.
+  final String? model;
+
+  /// Creates a new [CohereTokenizeRequest] instance.
+  CohereTokenizeRequest({
+    required this.text,
+    this.model,
+  }) : assert(text.isNotEmpty, 'text must not be empty');
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'text': text,
+      if (model != null) 'model': model,
+    };
+  }
+
+  /// Creates a [CohereTokenizeRequest] from a JSON map.
+  factory CohereTokenizeRequest.fromJson(Map<String, dynamic> json) {
+    final text = json['text'] as String?;
+    if (text == null || text.isEmpty) {
+      throw ClientError(
+        message: 'Missing or empty required field: text',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    return CohereTokenizeRequest(
+      text: text,
+      model: json['model'] as String?,
+    );
+  }
+}
+
+/// Represents a tokenize response in Cohere API format.
+///
+/// This model matches the exact structure returned by Cohere's `/v1/tokenize` endpoint.
+class CohereTokenizeResponse {
+  /// List of token IDs.
+  final List<int> tokens;
+
+  /// Optional list of token strings.
+  ///
+  /// Contains the string representation of each token.
+  final List<String>? tokenStrings;
+
+  /// Creates a new [CohereTokenizeResponse] instance.
+  CohereTokenizeResponse({
+    required this.tokens,
+    this.tokenStrings,
+  });
+
+  /// Creates a [CohereTokenizeResponse] from a JSON map.
+  factory CohereTokenizeResponse.fromJson(Map<String, dynamic> json) {
+    final tokens = json['tokens'] as List<dynamic>?;
+    if (tokens == null) {
+      throw ClientError(
+        message: 'Missing required field: tokens',
+        code: 'INVALID_RESPONSE',
+      );
+    }
+
+    return CohereTokenizeResponse(
+      tokens: tokens.map((t) => (t as num).toInt()).toList(),
+      tokenStrings: json['token_strings'] != null
+          ? List<String>.from(json['token_strings'] as List)
+          : null,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'tokens': tokens,
+      if (tokenStrings != null) 'token_strings': tokenStrings,
+    };
+  }
+}
+
+/// Represents a detokenize request in Cohere API format.
+///
+/// This model matches the exact structure expected by Cohere's `/v1/detokenize` endpoint.
+///
+/// **Cohere API Reference:**
+/// https://docs.cohere.com/reference/detokenize
+class CohereDetokenizeRequest {
+  /// List of token IDs to detokenize.
+  final List<int> tokens;
+
+  /// Optional model identifier.
+  ///
+  /// If not specified, uses the default tokenizer.
+  final String? model;
+
+  /// Creates a new [CohereDetokenizeRequest] instance.
+  CohereDetokenizeRequest({
+    required this.tokens,
+    this.model,
+  }) : assert(tokens.isNotEmpty, 'tokens must not be empty');
+
+  /// Converts this request to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'tokens': tokens,
+      if (model != null) 'model': model,
+    };
+  }
+
+  /// Creates a [CohereDetokenizeRequest] from a JSON map.
+  factory CohereDetokenizeRequest.fromJson(Map<String, dynamic> json) {
+    final tokens = json['tokens'] as List<dynamic>?;
+    if (tokens == null || tokens.isEmpty) {
+      throw ClientError(
+        message: 'Missing or empty required field: tokens',
+        code: 'INVALID_REQUEST',
+      );
+    }
+
+    return CohereDetokenizeRequest(
+      tokens: tokens.map((t) => (t as num).toInt()).toList(),
+      model: json['model'] as String?,
+    );
+  }
+}
+
+/// Represents a detokenize response in Cohere API format.
+///
+/// This model matches the exact structure returned by Cohere's `/v1/detokenize` endpoint.
+class CohereDetokenizeResponse {
+  /// The detokenized text.
+  final String text;
+
+  /// Creates a new [CohereDetokenizeResponse] instance.
+  CohereDetokenizeResponse({
+    required this.text,
+  });
+
+  /// Creates a [CohereDetokenizeResponse] from a JSON map.
+  factory CohereDetokenizeResponse.fromJson(Map<String, dynamic> json) {
     final text = json['text'] as String?;
     if (text == null) {
       throw ClientError(
@@ -563,29 +902,8 @@ class CohereChatResponse {
       );
     }
 
-    return CohereChatResponse(
+    return CohereDetokenizeResponse(
       text: text,
-      model: json['model'] as String?,
-      conversationId: json['conversation_id'] as String?,
-      finishReason: json['finish_reason'] as String?,
-      citations: json['citations'] != null
-          ? List<Map<String, dynamic>>.from(json['citations'] as List)
-          : null,
-      documents: json['documents'] != null
-          ? List<Map<String, dynamic>>.from(json['documents'] as List)
-          : null,
-      searchResults: json['search_results'] != null
-          ? List<Map<String, dynamic>>.from(json['search_results'] as List)
-          : null,
-      searchQueries: json['search_queries'] != null
-          ? List<Map<String, dynamic>>.from(json['search_queries'] as List)
-          : null,
-      toolCalls: json['tool_calls'] != null
-          ? List<Map<String, dynamic>>.from(json['tool_calls'] as List)
-          : null,
-      usage: json['meta'] != null && json['meta'] is Map<String, dynamic>
-          ? CohereUsage.fromJson(json['meta'] as Map<String, dynamic>)
-          : null,
     );
   }
 
@@ -593,15 +911,6 @@ class CohereChatResponse {
   Map<String, dynamic> toJson() {
     return {
       'text': text,
-      if (model != null) 'model': model,
-      if (conversationId != null) 'conversation_id': conversationId,
-      if (finishReason != null) 'finish_reason': finishReason,
-      if (citations != null) 'citations': citations,
-      if (documents != null) 'documents': documents,
-      if (searchResults != null) 'search_results': searchResults,
-      if (searchQueries != null) 'search_queries': searchQueries,
-      if (toolCalls != null) 'tool_calls': toolCalls,
-      if (usage != null) 'meta': usage!.toJson(),
     };
   }
 }

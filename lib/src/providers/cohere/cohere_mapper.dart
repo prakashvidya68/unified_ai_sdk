@@ -97,44 +97,49 @@ class CohereMapper implements ProviderMapper {
     final cohereOptions =
         request.providerOptions?['cohere'] ?? <String, dynamic>{};
 
-    // Convert SDK messages to Cohere format
-    // Cohere uses a single "message" array with role and content
+    // Convert SDK messages to Cohere v2 format
+    // v2 API uses "messages" array and supports system role directly
     final messages = <Map<String, dynamic>>[];
-    String? systemPrompt;
 
     for (final msg in request.messages) {
-      if (msg.role == Role.system) {
-        // Accumulate system messages
-        if (systemPrompt == null) {
-          systemPrompt = msg.content;
-        } else {
-          systemPrompt = '$systemPrompt\n\n${msg.content}';
-        }
-      } else {
-        // Convert user/assistant messages
-        final messageMap = <String, dynamic>{
-          'role': _mapRoleToCohere(msg.role),
-          'content': msg.content,
-        };
-        if (msg.name != null) {
-          messageMap['name'] = msg.name;
-        }
-        messages.add(messageMap);
+      // v2 supports system, user, assistant, and tool roles directly
+      final messageMap = <String, dynamic>{
+        'role': _mapRoleToCohere(msg.role),
+        'content': msg.content,
+      };
+      if (msg.name != null) {
+        messageMap['name'] = msg.name;
       }
+      if (msg.meta != null) {
+        // Include metadata if present (e.g., tool_call_id for tool messages)
+        messageMap.addAll(msg.meta!);
+      }
+      messages.add(messageMap);
     }
 
     // Ensure we have at least one message
     if (messages.isEmpty) {
       throw ClientError(
-        message: 'At least one user or assistant message is required',
+        message: 'At least one message is required',
         code: 'INVALID_REQUEST',
       );
     }
 
-    // Build Cohere request
+    // Extract Cohere-specific v2 options
+    final responseFormat = cohereOptions['response_format'] != null
+        ? Map<String, dynamic>.from(cohereOptions['response_format'] as Map)
+        : cohereOptions['responseFormat'] != null
+            ? Map<String, dynamic>.from(cohereOptions['responseFormat'] as Map)
+            : null;
+
+    final thinking = cohereOptions['thinking'] != null
+        ? Map<String, dynamic>.from(cohereOptions['thinking'] as Map)
+        : null;
+
+    // Build Cohere v2 request
     return CohereChatRequest(
       model: model,
-      message: messages,
+      messages: messages,
       conversationId: cohereOptions['conversation_id'] as String? ??
           cohereOptions['conversationId'] as String?,
       documents: cohereOptions['documents'] != null
@@ -160,8 +165,15 @@ class CohereMapper implements ProviderMapper {
       presencePenalty: cohereOptions['presence_penalty'] as double? ??
           cohereOptions['presencePenalty'] as double?,
       stream: cohereOptions['stream'] as bool?,
-      preambleOverride:
-          systemPrompt ?? cohereOptions['preamble_override'] as String?,
+      responseFormat: responseFormat,
+      safetyMode: cohereOptions['safety_mode'] as String? ??
+          cohereOptions['safetyMode'] as String?,
+      strictTools: cohereOptions['strict_tools'] as bool? ??
+          cohereOptions['strictTools'] as bool?,
+      thinking: thinking,
+      priority: cohereOptions['priority'] as int?,
+      seed: cohereOptions['seed'] as int?,
+      logprobs: cohereOptions['logprobs'] as bool?,
     );
   }
 
@@ -173,22 +185,26 @@ class CohereMapper implements ProviderMapper {
       );
     }
 
+    // Extract text from v2 message.content structure
+    final text = response.getText();
+
+    // Extract metadata from message object
+    final messageMeta = <String, dynamic>{};
+    if (response.message['tool_calls'] != null) {
+      messageMeta['tool_calls'] = response.message['tool_calls'];
+    }
+    if (response.message['citations'] != null) {
+      messageMeta['citations'] = response.message['citations'];
+    }
+
     // Convert Cohere response to SDK format
     final message = Message(
       role: Role.assistant,
-      content: response.text,
+      content: text,
       meta: {
-        if (response.conversationId != null)
-          'conversation_id': response.conversationId,
+        ...messageMeta,
         if (response.finishReason != null)
           'finish_reason': response.finishReason,
-        if (response.citations != null) 'citations': response.citations,
-        if (response.documents != null) 'documents': response.documents,
-        if (response.searchResults != null)
-          'search_results': response.searchResults,
-        if (response.searchQueries != null)
-          'search_queries': response.searchQueries,
-        if (response.toolCalls != null) 'tool_calls': response.toolCalls,
       },
     );
 
@@ -199,35 +215,80 @@ class CohereMapper implements ProviderMapper {
     );
 
     // Convert Cohere usage to SDK usage
-    final usage = response.usage != null && response.usage!.tokens != null
-        ? Usage(
-            promptTokens: response.usage!.tokens!,
-            completionTokens:
-                0, // Cohere doesn't separate prompt/completion tokens
-            totalTokens: response.usage!.tokens!,
-          )
-        : null;
+    // v2 API uses usage object with input_tokens and output_tokens
+    Usage? usage;
+    if (response.usage != null) {
+      final usageMap = response.usage!;
+
+      int inputTokens = 0;
+      int outputTokens = 0;
+
+      // Prefer direct fields when present
+      final directInput = usageMap['input_tokens'];
+      final directOutput = usageMap['output_tokens'];
+
+      if (directInput is int) {
+        inputTokens = directInput;
+      } else if (directInput is num) {
+        inputTokens = directInput.toInt();
+      }
+
+      if (directOutput is int) {
+        outputTokens = directOutput;
+      } else if (directOutput is num) {
+        outputTokens = directOutput.toInt();
+      }
+
+      // Fallback: nested structure under `tokens`: { input_tokens, output_tokens }
+      if ((inputTokens == 0 && outputTokens == 0)) {
+        final tokensField = usageMap['tokens'];
+        if (tokensField is Map) {
+          final nestedInput = tokensField['input_tokens'];
+          final nestedOutput = tokensField['output_tokens'];
+
+          if (nestedInput is int) {
+            inputTokens = nestedInput;
+          } else if (nestedInput is num) {
+            inputTokens = nestedInput.toInt();
+          }
+
+          if (nestedOutput is int) {
+            outputTokens = nestedOutput;
+          } else if (nestedOutput is num) {
+            outputTokens = nestedOutput.toInt();
+          }
+        } else if (tokensField is num) {
+          // Some responses may include a flat total token count
+          inputTokens = tokensField.toInt();
+          // completionTokens remains 0 in absence of breakdown
+        }
+      }
+
+      usage = Usage(
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      );
+    }
 
     // Build metadata from Cohere-specific fields
     final metadata = <String, dynamic>{
-      if (response.conversationId != null)
-        'conversation_id': response.conversationId,
+      'id': response.id,
       if (response.finishReason != null) 'finish_reason': response.finishReason,
-      if (response.citations != null) 'citations': response.citations,
-      if (response.documents != null) 'documents': response.documents,
-      if (response.searchResults != null)
-        'search_results': response.searchResults,
-      if (response.searchQueries != null)
-        'search_queries': response.searchQueries,
-      if (response.toolCalls != null) 'tool_calls': response.toolCalls,
+      if (response.usage != null) 'usage': response.usage,
+      if (response.logprobs != null) 'logprobs': response.logprobs,
+      ...messageMeta,
     };
 
+    // Try to extract model from usage or use default
+    final modelName = response.usage?['model'] as String? ?? 'command-r-plus';
+
     return ChatResponse(
-      id: 'cohere-${DateTime.now().millisecondsSinceEpoch}',
+      id: response.id,
       choices: [choice],
       usage: usage ??
           const Usage(promptTokens: 0, completionTokens: 0, totalTokens: 0),
-      model: response.model ?? 'command-r-plus',
+      model: modelName,
       provider: 'cohere',
       timestamp: DateTime.now(),
       metadata: metadata,
@@ -236,7 +297,7 @@ class CohereMapper implements ProviderMapper {
 
   /// Maps SDK Role enum to Cohere role string.
   ///
-  /// Cohere supports: "user", "assistant", "system"
+  /// Cohere v2 supports: "user", "assistant", "system", "tool"
   String _mapRoleToCohere(Role role) {
     switch (role) {
       case Role.user:
@@ -246,28 +307,44 @@ class CohereMapper implements ProviderMapper {
       case Role.system:
         return 'system';
       case Role.function:
-        // Cohere doesn't have a function role
-        // Function results are typically sent as user messages
-        return 'user';
+        // v2 API uses "tool" role for function/tool messages
+        return 'tool';
     }
   }
 
   /// Maps Cohere finish_reason to SDK finish_reason format.
+  ///
+  /// v2 API uses: COMPLETE, MAX_TOKENS, STOP_SEQUENCE, TOOL_CALL, ERROR, TIMEOUT
   String? _mapFinishReasonToSDK(String? finishReason) {
     if (finishReason == null) return null;
 
-    switch (finishReason.toLowerCase()) {
-      case 'complete':
-      case 'stop':
+    switch (finishReason.toUpperCase()) {
+      case 'COMPLETE':
         return 'stop';
-      case 'max_tokens':
-      case 'max_tokens_reached':
+      case 'MAX_TOKENS':
         return 'length';
-      case 'tool_use':
-      case 'tool_call':
+      case 'STOP_SEQUENCE':
+        return 'stop';
+      case 'TOOL_CALL':
         return 'function_call';
-      default:
+      case 'ERROR':
+      case 'TIMEOUT':
         return finishReason.toLowerCase();
+      default:
+        // Handle legacy v1 values for backward compatibility
+        switch (finishReason.toLowerCase()) {
+          case 'complete':
+          case 'stop':
+            return 'stop';
+          case 'max_tokens':
+          case 'max_tokens_reached':
+            return 'length';
+          case 'tool_use':
+          case 'tool_call':
+            return 'function_call';
+          default:
+            return finishReason.toLowerCase();
+        }
     }
   }
 
@@ -324,17 +401,25 @@ class CohereMapper implements ProviderMapper {
     final cohereOptions =
         request.providerOptions?['cohere'] ?? <String, dynamic>{};
 
-    // Build Cohere request
+    // v2 API requires embedding_types - default to ['float'] if not specified
+    final embeddingTypes = cohereOptions['embedding_types'] != null
+        ? List<String>.from(cohereOptions['embedding_types'] as List)
+        : cohereOptions['embeddingTypes'] != null
+            ? List<String>.from(cohereOptions['embeddingTypes'] as List)
+            : ['float']; // Default to float for v2
+
+    // v2 API requires input_type - default to 'search_document' if not specified
+    // Valid values: 'search_document', 'search_query', 'classification', 'clustering'
+    final inputType = cohereOptions['input_type'] as String? ??
+        cohereOptions['inputType'] as String? ??
+        'search_document'; // Default to search_document for v2
+
+    // Build Cohere v2 request
     return CohereEmbeddingRequest(
       texts: request.inputs,
       model: model,
-      inputType: cohereOptions['input_type'] as String? ??
-          cohereOptions['inputType'] as String?,
-      embeddingTypes: cohereOptions['embedding_types'] != null
-          ? List<String>.from(cohereOptions['embedding_types'] as List)
-          : cohereOptions['embeddingTypes'] != null
-              ? List<String>.from(cohereOptions['embeddingTypes'] as List)
-              : null,
+      inputType: inputType,
+      embeddingTypes: embeddingTypes,
       truncate: cohereOptions['truncate'] as String?,
     );
   }
