@@ -25,6 +25,7 @@ import '../../models/responses/video_response.dart';
 import '../../error/error_mapper.dart';
 import '../../network/http_client_wrapper.dart';
 import '../base/ai_provider.dart';
+import '../base/model_fetcher.dart';
 import '../base/provider_mapper.dart';
 import '../base/rate_limiter_factory.dart';
 import 'mistral_mapper.dart';
@@ -33,10 +34,12 @@ import 'mistral_models.dart';
 /// Mistral AI provider implementation for the Unified AI SDK.
 ///
 /// This provider integrates with Mistral AI's API to provide:
-/// - Chat completions (Mistral Large, Medium, Small, Codestral, Pixtral)
-/// - Embeddings (Mistral Embed)
+/// - Chat completions (Magistral, Mistral Medium, Small, Codestral, Pixtral, Devstral)
+/// - Embeddings (Mistral Embed, Codestral Embed)
 /// - Speech-to-text (Voxtral)
+/// - Video analysis (Pixtral)
 /// - Streaming support for chat completions
+/// - Dynamic model fetching via /v1/models endpoint
 ///
 /// **Key Features:**
 /// - Uses Mistral AI's Chat Completions API (`/v1/chat/completions`)
@@ -63,7 +66,7 @@ import 'mistral_models.dart';
 ///   ],
 /// ));
 /// ```
-class MistralProvider extends AiProvider {
+class MistralProvider extends AiProvider implements ModelFetcher {
   /// Default base URL for Mistral AI API.
   static const String _defaultBaseUrl = 'https://api.mistral.ai/v1';
 
@@ -86,15 +89,42 @@ class MistralProvider extends AiProvider {
   ///
   /// These models are always available as a backup, ensuring the SDK works
   /// even when the API is unreachable or model fetching fails.
+  ///
+  /// Updated based on Mistral AI models documentation:
+  /// https://docs.mistral.ai/getting-started/models
   static const List<String> _fallbackModels = [
+    // Frontier Models - Chat/Text
+    'magistral-medium-2509',
+    'mistral-medium-2508',
+    'codestral-2508',
+    'devstral-medium-2507',
+    'mistral-medium-2505',
+    'mistral-large-2407',
+    'pixtral-large-2411',
+    'ministral-8b-2401',
+    'ministral-3b-2401',
+    // Open Models - Chat/Text
+    'magistral-small-2509',
+    'mistral-small-2506',
+    'devstral-small-2507',
+    'pixtral-12b-2409',
+    'mistral-nemo-12b-2407',
+    // Embedding Models
+    'codestral-embed-2505',
+    'mistral-embed-2312',
+    // Audio/STT Models
+    'voxtral-mini-transcribe-2507',
+    'voxtral-mini-2507',
+    'voxtral-small-2507',
+    // Other Services
+    'mistral-ocr-2505',
+    'mistral-moderation-2411',
+    // Latest aliases (for backward compatibility)
     'mistral-large-latest',
     'mistral-medium-latest',
     'mistral-small-latest',
     'codestral-latest',
     'pixtral-latest',
-    'pixtral-12b-2409', // Video analysis model
-    'mistral-embed',
-    'voxtral-mini-transcribe',
   ];
 
   /// Cached capabilities instance.
@@ -122,7 +152,7 @@ class MistralProvider extends AiProvider {
       supportsStreaming: true,
       fallbackModels: _fallbackModels,
       dynamicModels:
-          false, // Mistral doesn't support dynamic model fetching yet
+          true, // Mistral supports dynamic model fetching via /v1/models
     );
     return _capabilities!;
   }
@@ -183,6 +213,16 @@ class MistralProvider extends AiProvider {
       },
       rateLimiter: rateLimiter,
     );
+
+    // Optionally fetch models during initialization if configured
+    if (config.settings['fetchModelsOnInit'] == true) {
+      try {
+        await fetchAvailableModels();
+      } on Exception {
+        // Silently fail - fallback models will be used
+        // Log error if telemetry is configured
+      }
+    }
   }
 
   @override
@@ -511,4 +551,144 @@ class MistralProvider extends AiProvider {
   /// This is exposed for testing but should not be used in production code.
   @visibleForTesting
   HttpClientWrapper get httpClient => _http;
+
+  // ModelFetcher implementation
+
+  @override
+  Future<List<String>> fetchAvailableModels() async {
+    try {
+      final response = await _http.get('$_baseUrl/models');
+
+      if (response.statusCode != 200) {
+        // Return fallback models on error
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          throw AuthError(
+            message: 'Failed to fetch models: Authentication failed',
+            code: 'AUTH_FAILED',
+            provider: id,
+          );
+        }
+        return _fallbackModels;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      // Mistral API returns models in 'data' array (similar to OpenAI)
+      final modelsList = data['data'] as List<dynamic>?;
+
+      if (modelsList == null || modelsList.isEmpty) {
+        return _fallbackModels;
+      }
+
+      // Extract model IDs and filter out unsupported models
+      final models = modelsList
+          .map((m) {
+            // Handle both object format {id: "...", ...} and string format
+            if (m is Map<String, dynamic>) {
+              return m['id'] as String?;
+            } else if (m is String) {
+              return m;
+            }
+            return null;
+          })
+          .whereType<String>()
+          .where((id) => _isSupportedModel(id))
+          .toList();
+
+      // Update capabilities cache
+      if (models.isNotEmpty) {
+        capabilities.updateModels(models);
+      }
+
+      return models.isEmpty ? _fallbackModels : models;
+    } on AuthError {
+      // Re-throw auth errors
+      rethrow;
+    } on Exception {
+      // On any other error, return fallback models
+      return _fallbackModels;
+    }
+  }
+
+  @override
+  String inferModelType(String modelId) {
+    final lowerId = modelId.toLowerCase();
+
+    // Chat/text models
+    if (lowerId.contains('magistral') ||
+        lowerId.contains('mistral-medium') ||
+        lowerId.contains('mistral-small') ||
+        lowerId.contains('mistral-large') ||
+        lowerId.contains('codestral') ||
+        lowerId.contains('devstral') ||
+        lowerId.contains('pixtral') ||
+        lowerId.contains('ministral') ||
+        lowerId.contains('mistral-nemo')) {
+      // Exclude embedding and audio models
+      if (lowerId.contains('embed') ||
+          lowerId.contains('voxtral') ||
+          lowerId.contains('transcribe')) {
+        // These are handled below
+      } else {
+        return 'text';
+      }
+    }
+
+    // Embedding models
+    if (lowerId.contains('embed')) {
+      return 'embedding';
+    }
+
+    // Audio/STT models
+    if (lowerId.contains('voxtral') || lowerId.contains('transcribe')) {
+      return 'stt';
+    }
+
+    // OCR service
+    if (lowerId.contains('ocr')) {
+      return 'other';
+    }
+
+    // Moderation service
+    if (lowerId.contains('moderation')) {
+      return 'other';
+    }
+
+    // Default to text for unknown models
+    return 'text';
+  }
+
+  /// Checks if a model ID is supported by this provider.
+  ///
+  /// Filters out deprecated or unsupported models.
+  bool _isSupportedModel(String modelId) {
+    final lowerId = modelId.toLowerCase();
+
+    // Exclude deprecated models (based on Mistral docs)
+    // These models are marked as deprecated/retired
+    final deprecatedPatterns = [
+      'mistral-7b-0',
+      'mixtral-8x7b-0',
+      'mixtral-8x22b-0',
+      'mistral-saba',
+      'mistral-next',
+      'mathstral',
+      'codestral-mamba',
+    ];
+
+    for (final pattern in deprecatedPatterns) {
+      if (lowerId.contains(pattern)) {
+        return false;
+      }
+    }
+
+    // Include all other models that match known patterns
+    return lowerId.contains('mistral') ||
+        lowerId.contains('magistral') ||
+        lowerId.contains('codestral') ||
+        lowerId.contains('devstral') ||
+        lowerId.contains('pixtral') ||
+        lowerId.contains('ministral') ||
+        lowerId.contains('voxtral') ||
+        lowerId.contains('nemo');
+  }
 }
