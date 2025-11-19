@@ -174,8 +174,9 @@ class GoogleMapper implements ProviderMapper {
   @override
   GoogleImageRequest mapImageRequest(ImageRequest request,
       {String? defaultModel}) {
-    // Determine model - default to imagegeneration@006 if not specified
-    final model = request.model ?? defaultModel ?? 'imagegeneration@006';
+    // Determine model - default to imagen-4.0-generate-001 (latest Imagen model)
+    // See: https://ai.google.dev/gemini-api/docs/imagen
+    final model = request.model ?? defaultModel ?? 'imagen-4.0-generate-001';
     if (model.isEmpty) {
       throw ClientError(
         message:
@@ -225,6 +226,7 @@ class GoogleMapper implements ProviderMapper {
       prompt: request.prompt,
       numberOfImages: request.n,
       aspectRatio: aspectRatio ?? googleOptions['aspectRatio'] as String?,
+      imageSize: googleOptions['imageSize'] as String?,
       safetyFilterLevel: googleOptions['safetyFilterLevel'] as String?,
       personGeneration: googleOptions['personGeneration'] as String?,
     );
@@ -248,7 +250,80 @@ class GoogleMapper implements ProviderMapper {
     }).toList();
 
     // Extract model from response (if available) or use default
-    final model = 'imagegeneration@006'; // Default, could be enhanced
+    final model = 'imagen-4.0-generate-001'; // Default, could be enhanced
+
+    return ImageResponse(
+      assets: assets,
+      model: model,
+      provider: 'google',
+    );
+  }
+
+  /// Maps a Gemini image generation response to SDK format.
+  ///
+  /// Gemini image models return responses in the same format as chat responses,
+  /// but with image data in the candidates' parts instead of text.
+  ImageResponse mapGeminiImageResponse(
+    Map<String, dynamic> responseJson,
+    String model,
+  ) {
+    final candidates = responseJson['candidates'] as List<dynamic>?;
+    if (candidates == null || candidates.isEmpty) {
+      throw ClientError(
+        message: 'No candidates in Gemini image response',
+        code: 'INVALID_RESPONSE',
+        provider: 'google',
+      );
+    }
+
+    // Extract image data from candidates
+    final assets = <ImageAsset>[];
+    for (final candidate in candidates) {
+      final candidateMap = candidate as Map<String, dynamic>;
+      final content = candidateMap['content'] as Map<String, dynamic>?;
+      if (content != null) {
+        final parts = content['parts'] as List<dynamic>?;
+        if (parts != null) {
+          for (final part in parts) {
+            if (part is Map<String, dynamic>) {
+              // Check for inline_data (base64 image) - Google uses snake_case in JSON
+              final inlineData = part['inline_data'] as Map<String, dynamic>? ??
+                  part['inlineData'] as Map<String, dynamic>?;
+              if (inlineData != null) {
+                final data = inlineData['data'] as String?;
+                if (data != null) {
+                  assets.add(ImageAsset(
+                    base64: data,
+                    // Gemini image models return base64, not URLs
+                    url: null,
+                  ));
+                }
+              }
+              // Also check for image field (alternative format)
+              final imageData = part['image'] as Map<String, dynamic>?;
+              if (imageData != null) {
+                final data = imageData['data'] as String? ??
+                    imageData['bytesBase64Encoded'] as String?;
+                if (data != null) {
+                  assets.add(ImageAsset(
+                    base64: data,
+                    url: null,
+                  ));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (assets.isEmpty) {
+      throw ClientError(
+        message: 'No image data found in Gemini response',
+        code: 'INVALID_RESPONSE',
+        provider: 'google',
+      );
+    }
 
     return ImageResponse(
       assets: assets,
@@ -308,33 +383,66 @@ class GoogleMapper implements ProviderMapper {
       };
     }
 
+    // Build generationConfig object - Google requires temperature, topP, etc. inside generationConfig
+    Map<String, dynamic>? generationConfig;
+    final existingGenerationConfig =
+        googleOptions['generation_config'] as Map<String, dynamic>? ??
+            googleOptions['generationConfig'] as Map<String, dynamic>?;
+
+    // Only create generationConfig if we have at least one parameter to include
+    if (request.temperature != null ||
+        request.topP != null ||
+        request.maxTokens != null ||
+        request.stop != null ||
+        googleOptions['top_k'] != null ||
+        googleOptions['topK'] != null ||
+        googleOptions['max_output_tokens'] != null ||
+        googleOptions['maxOutputTokens'] != null ||
+        googleOptions['stop_sequences'] != null ||
+        googleOptions['stopSequences'] != null ||
+        existingGenerationConfig != null) {
+      generationConfig = <String, dynamic>{
+        ...?existingGenerationConfig,
+        if (request.temperature != null) 'temperature': request.temperature,
+        if (request.topP != null) 'topP': request.topP,
+        if (googleOptions['top_k'] != null) 'topK': googleOptions['top_k'],
+        if (googleOptions['topK'] != null && googleOptions['top_k'] == null)
+          'topK': googleOptions['topK'],
+        if (request.maxTokens != null) 'maxOutputTokens': request.maxTokens,
+        if (googleOptions['max_output_tokens'] != null)
+          'maxOutputTokens': googleOptions['max_output_tokens'],
+        if (googleOptions['maxOutputTokens'] != null &&
+            request.maxTokens == null &&
+            googleOptions['max_output_tokens'] == null)
+          'maxOutputTokens': googleOptions['maxOutputTokens'],
+        if (request.stop != null) 'stopSequences': request.stop,
+        if (googleOptions['stop_sequences'] != null)
+          'stopSequences': googleOptions['stop_sequences'],
+        if (googleOptions['stopSequences'] != null &&
+            request.stop == null &&
+            googleOptions['stop_sequences'] == null)
+          'stopSequences': googleOptions['stopSequences'],
+      };
+    }
+
     // Build Google request
     return GoogleChatRequest(
       contents: contents,
       systemInstruction: systemInstructionObj ??
           (googleOptions['system_instruction'] as Map<String, dynamic>?),
       model: model,
-      temperature: request.temperature,
-      topP: request.topP,
-      // Google-specific fields
-      topK: googleOptions['top_k'] as int? ?? googleOptions['topK'] as int?,
-      maxOutputTokens: request.maxTokens ??
-          googleOptions['max_output_tokens'] as int? ??
-          googleOptions['maxOutputTokens'] as int?,
-      stopSequences: request.stop ??
-          (googleOptions['stop_sequences'] != null
-              ? List<String>.from(googleOptions['stop_sequences'] as List)
-              : googleOptions['stopSequences'] != null
-                  ? List<String>.from(googleOptions['stopSequences'] as List)
-                  : null),
+      // temperature and topP are now in generationConfig, not top-level
+      temperature: null,
+      topP: null,
+      topK: null,
+      maxOutputTokens: null,
+      stopSequences: null,
       candidateCount: googleOptions['candidate_count'] as int? ??
           googleOptions['candidateCount'] as int?,
       safetySettings:
           googleOptions['safety_settings'] as Map<String, dynamic>? ??
               googleOptions['safetySettings'] as Map<String, dynamic>?,
-      generationConfig:
-          googleOptions['generation_config'] as Map<String, dynamic>? ??
-              googleOptions['generationConfig'] as Map<String, dynamic>?,
+      generationConfig: generationConfig,
     );
   }
 

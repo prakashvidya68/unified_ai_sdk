@@ -283,19 +283,26 @@ class GoogleChatRequest {
   /// Converts this [GoogleChatRequest] to a JSON map.
   ///
   /// Returns a map compatible with Google Gemini API format.
+  /// Note: temperature, topP, topK, maxOutputTokens, and stopSequences should be
+  /// inside generationConfig, not as top-level fields.
   Map<String, dynamic> toJson() {
     return {
       'contents': contents.map((c) => c.toJson()).toList(),
-      if (systemInstruction != null) 'system_instruction': systemInstruction,
+      if (systemInstruction != null) 'systemInstruction': systemInstruction,
       if (model != null) 'model': model,
-      if (temperature != null) 'temperature': temperature,
-      if (topP != null) 'top_p': topP,
-      if (topK != null) 'top_k': topK,
-      if (maxOutputTokens != null) 'max_output_tokens': maxOutputTokens,
-      if (stopSequences != null) 'stop_sequences': stopSequences,
-      if (candidateCount != null) 'candidate_count': candidateCount,
-      if (safetySettings != null) 'safety_settings': safetySettings,
-      if (generationConfig != null) 'generation_config': generationConfig,
+      // temperature, topP, topK, maxOutputTokens, stopSequences are now in generationConfig
+      // Only include them as top-level if generationConfig is null (for backward compatibility)
+      if (generationConfig == null && temperature != null)
+        'temperature': temperature,
+      if (generationConfig == null && topP != null) 'topP': topP,
+      if (generationConfig == null && topK != null) 'topK': topK,
+      if (generationConfig == null && maxOutputTokens != null)
+        'maxOutputTokens': maxOutputTokens,
+      if (generationConfig == null && stopSequences != null)
+        'stopSequences': stopSequences,
+      if (candidateCount != null) 'candidateCount': candidateCount,
+      if (safetySettings != null) 'safetySettings': safetySettings,
+      if (generationConfig != null) 'generationConfig': generationConfig,
     };
   }
 
@@ -791,6 +798,12 @@ class GoogleImageRequest {
   /// Person generation setting.
   final String? personGeneration;
 
+  /// Image size setting.
+  ///
+  /// Supported values: "1K" and "2K". Only supported for Standard and Ultra models.
+  /// Default is "1K".
+  final String? imageSize;
+
   /// Creates a new [GoogleImageRequest] instance.
   GoogleImageRequest({
     this.model,
@@ -799,6 +812,7 @@ class GoogleImageRequest {
     this.aspectRatio,
     this.safetyFilterLevel,
     this.personGeneration,
+    this.imageSize,
   });
 
   /// Converts this request to a JSON map.
@@ -813,6 +827,7 @@ class GoogleImageRequest {
       'parameters': {
         if (numberOfImages != null) 'sampleCount': numberOfImages,
         if (aspectRatio != null) 'aspectRatio': aspectRatio,
+        if (imageSize != null) 'imageSize': imageSize,
         if (safetyFilterLevel != null) 'safetyFilterLevel': safetyFilterLevel,
         if (personGeneration != null) 'personGeneration': personGeneration,
       },
@@ -831,6 +846,7 @@ class GoogleImageRequest {
       prompt: prompt ?? '',
       numberOfImages: parameters?['sampleCount'] as int?,
       aspectRatio: parameters?['aspectRatio'] as String?,
+      imageSize: parameters?['imageSize'] as String?,
       safetyFilterLevel: parameters?['safetyFilterLevel'] as String?,
       personGeneration: parameters?['personGeneration'] as String?,
     );
