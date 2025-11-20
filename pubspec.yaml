@@ -1,6 +1,6 @@
 name: unified_ai_sdk
 description: A unified, provider-agnostic Dart SDK for interacting with multiple AI providers through a single, consistent interface.
-version: 1.0.0
+version: 0.0.1
 homepage: https://github.com/your-org/unified_ai_sdk
 repository: https://github.com/your-org/unified_ai_sdk
 
