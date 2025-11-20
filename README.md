@@ -1,25 +1,47 @@
 # unified_ai_sdk
 
-A unified, provider-agnostic Dart SDK for interacting with multiple AI providers through a single, consistent interface. Supports chat completions, embeddings, image generation, and more.
+A unified, provider-agnostic Dart SDK for interacting with multiple AI providers through a single, consistent interface. Supports chat completions, embeddings, image generation, streaming, and more.
 
 [![pub package](https://img.shields.io/pub/v/unified_ai_sdk.svg)](https://pub.dev/packages/unified_ai_sdk)
 [![Dart SDK](https://img.shields.io/badge/Dart-3.0.0+-blue.svg)](https://dart.dev)
 
 ## Features
 
-- **Unified Interface**: Single API for multiple AI providers (OpenAI, Anthropic, etc.)
+- **Unified Interface**: Single API for multiple AI providers (OpenAI, Anthropic, Google, Cohere, xAI, Mistral)
 - **Provider Agnostic**: Switch between providers without changing your code
+- **Automatic Routing**: Intelligent provider selection based on request intent and capabilities
+- **Streaming Support**: Real-time streaming responses for chat completions
 - **Automatic Retries**: Built-in retry logic with exponential backoff
 - **Type Safe**: Strong Dart typing throughout
 - **BYOK (Bring Your Own Key)**: You control your API keys
-- **Extensible**: Easy to add new providers
+- **Telemetry**: Built-in observability and metrics collection
+- **Health Checking**: Monitor provider availability and performance
+- **Rate Limiting**: Automatic rate limit management
+- **Caching**: Configurable response caching to reduce API costs
 - **Error Handling**: Structured error types for better error handling
+- **Extensible**: Easy to add new providers
 
 ## Supported Providers
 
-- **OpenAI** ✅ (Chat, Embeddings, Image Generation)
+The SDK supports 6 major AI providers, each with different capabilities:
 
-More providers coming soon!
+| Provider      | Chat | Embeddings | Image Gen | Streaming | Dynamic Models |
+| ------------- | ---- | ---------- | --------- | --------- | -------------- |
+| **OpenAI**    | ✅   | ✅         | ✅        | ✅        | ✅             |
+| **Anthropic** | ✅   | ❌         | ❌        | ✅        | ❌             |
+| **Google**    | ✅   | ✅         | ❌        | ✅        | ✅             |
+| **Cohere**    | ✅   | ✅         | ❌        | ✅        | ✅             |
+| **xAI**       | ✅   | ❌         | ❌        | ✅        | ❌             |
+| **Mistral**   | ✅   | ✅         | ❌        | ✅        | ✅             |
+
+### Provider Capabilities
+
+- **OpenAI**: GPT-5.1, GPT-5, GPT-4o series, embeddings, DALL-E image generation, Sora video generation, TTS/STT
+- **Anthropic**: Claude 3 Opus, Sonnet, Haiku models
+- **Google**: Gemini models, embeddings
+- **Cohere**: Command models, embeddings
+- **xAI**: Grok models
+- **Mistral**: Mistral models, embeddings
 
 ## Installation
 
@@ -41,10 +63,7 @@ dart pub get
 ### 1. Initialize the SDK
 
 ```dart
-import 'package:unified_ai_sdk/src/core/authentication.dart';
-import 'package:unified_ai_sdk/src/core/config.dart';
-import 'package:unified_ai_sdk/src/core/provider_config.dart';
-import 'package:unified_ai_sdk/src/core/unified_ai.dart';
+import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 
 // Initialize with your provider configuration
 await UnifiedAI.init(
@@ -85,10 +104,7 @@ print(response.choices.first.message.content);
 ### Chat Completions
 
 ```dart
-import 'package:unified_ai_sdk/src/core/unified_ai.dart';
-import 'package:unified_ai_sdk/src/models/requests/chat_request.dart';
-import 'package:unified_ai_sdk/src/models/common/message.dart';
-import 'package:unified_ai_sdk/src/models/base_enums.dart';
+import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 
 final ai = UnifiedAI.instance;
 
@@ -118,12 +134,41 @@ final response2 = await ai.chat(
 );
 ```
 
+### Streaming Chat
+
+```dart
+final ai = UnifiedAI.instance;
+
+// Streaming chat for real-time responses
+final stream = ai.chatStream(
+  request: ChatRequest(
+    messages: [
+      Message(role: Role.user, content: 'Tell me a story'),
+    ],
+  ),
+);
+
+String accumulatedText = '';
+await for (final event in stream) {
+  if (event.delta != null) {
+    accumulatedText += event.delta!;
+    print(event.delta!); // Print incrementally
+  }
+
+  if (event.done) {
+    print('\n\nStream completed!');
+    if (event.metadata != null) {
+      final usage = event.metadata!['usage'];
+      print('Tokens used: ${usage['total_tokens']}');
+    }
+    break;
+  }
+}
+```
+
 ### Embeddings
 
 ```dart
-import 'package:unified_ai_sdk/src/core/unified_ai.dart';
-import 'package:unified_ai_sdk/src/models/requests/embedding_request.dart';
-
 final ai = UnifiedAI.instance;
 
 // Generate embeddings
@@ -144,10 +189,6 @@ for (final embedding in embeddingResponse.embeddings) {
 ### Image Generation
 
 ```dart
-import 'package:unified_ai_sdk/src/core/unified_ai.dart';
-import 'package:unified_ai_sdk/src/models/requests/image_request.dart';
-import 'package:unified_ai_sdk/src/models/base_enums.dart';
-
 final ai = UnifiedAI.instance;
 
 // Generate an image
@@ -168,9 +209,31 @@ for (final asset in imageResponse.assets) {
 }
 ```
 
-### Using Specific Providers
+### Multi-Provider Usage
 
 ```dart
+// Configure multiple providers
+await UnifiedAI.init(
+  UnifiedAIConfig(
+    defaultProvider: 'openai',
+    perProviderConfig: {
+      'openai': ProviderConfig(
+        id: 'openai',
+        auth: ApiKeyAuth(apiKey: 'sk-openai-key'),
+      ),
+      'anthropic': ProviderConfig(
+        id: 'anthropic',
+        auth: ApiKeyAuth(
+          apiKey: 'sk-ant-anthropic-key',
+          headerName: 'x-api-key',
+        ),
+      ),
+    },
+  ),
+);
+
+final ai = UnifiedAI.instance;
+
 // Use default provider
 final response1 = await ai.chat(request: chatRequest);
 
@@ -179,13 +242,23 @@ final response2 = await ai.chat(
   provider: 'openai',
   request: chatRequest,
 );
+
+// Automatic intent-based routing
+// SDK automatically selects appropriate provider based on request
+final response3 = await ai.chat(
+  request: ChatRequest(
+    messages: [
+      Message(role: Role.user, content: 'Draw a picture of a cat'),
+    ],
+  ),
+);
+// Automatically routes to a provider that supports image generation
 ```
 
 ### Error Handling
 
 ```dart
-import 'package:unified_ai_sdk/src/core/unified_ai.dart';
-import 'package:unified_ai_sdk/src/error/error_types.dart';
+import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 
 try {
   final response = await ai.chat(request: chatRequest);
@@ -229,10 +302,7 @@ final config = UnifiedAIConfig(
 ### Advanced Configuration with Retry Policy
 
 ```dart
-import 'package:unified_ai_sdk/src/core/config.dart';
-import 'package:unified_ai_sdk/src/core/provider_config.dart';
-import 'package:unified_ai_sdk/src/core/authentication.dart';
-import 'package:unified_ai_sdk/src/retry/retry_policy.dart';
+import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 
 final config = UnifiedAIConfig(
   defaultProvider: 'openai',
@@ -247,6 +317,43 @@ final config = UnifiedAIConfig(
     initialDelay: Duration(milliseconds: 200),
     maxDelay: Duration(seconds: 60),
     multiplier: 2.0,
+  ),
+);
+```
+
+### Configuration with Telemetry
+
+```dart
+final config = UnifiedAIConfig(
+  defaultProvider: 'openai',
+  perProviderConfig: {
+    'openai': ProviderConfig(
+      id: 'openai',
+      auth: ApiKeyAuth(apiKey: 'sk-...'),
+    ),
+  },
+  telemetryHandlers: [
+    ConsoleLogger(),
+    MetricsCollector(),
+  ],
+);
+```
+
+### Configuration with Caching
+
+```dart
+final config = UnifiedAIConfig(
+  defaultProvider: 'openai',
+  perProviderConfig: {
+    'openai': ProviderConfig(
+      id: 'openai',
+      auth: ApiKeyAuth(apiKey: 'sk-...'),
+    ),
+  },
+  cache: CacheConfig(
+    backend: CacheBackendType.memory,
+    defaultTTL: Duration(hours: 1),
+    maxSizeMB: 100,
   ),
 );
 ```
@@ -267,6 +374,60 @@ final auth2 = CustomHeaderAuth({
 });
 ```
 
+## Advanced Features
+
+### Intent-Based Routing
+
+The SDK can automatically route requests to appropriate providers based on the request type:
+
+```dart
+// Chat request - routes to any provider with chat capability
+final chatResponse = await ai.chat(request: chatRequest);
+
+// Embedding request - routes to provider with embedding capability
+final embedResponse = await ai.embed(request: embeddingRequest);
+
+// Image generation - routes to provider with image generation capability
+final imageResponse = await ai.generateImage(request: imageRequest);
+```
+
+### Provider Health Checking
+
+```dart
+final ai = UnifiedAI.instance;
+final provider = ai.getProvider('openai');
+
+if (provider != null) {
+  // Check provider capabilities
+  print('Supports chat: ${provider.capabilities.supportsChat}');
+  print('Supports streaming: ${provider.capabilities.supportsStreaming}');
+  print('Supported models: ${provider.capabilities.supportedModels}');
+}
+```
+
+### Telemetry and Observability
+
+```dart
+import 'package:unified_ai_sdk/unified_ai_sdk.dart';
+
+// Configure telemetry handlers
+await UnifiedAI.init(
+  UnifiedAIConfig(
+    defaultProvider: 'openai',
+    perProviderConfig: {...},
+    telemetryHandlers: [
+      ConsoleLogger(), // Logs to console
+      MetricsCollector(), // Collects metrics
+    ],
+  ),
+);
+
+// Telemetry events are automatically emitted for:
+// - Request start
+// - Response completion (with latency and token usage)
+// - Errors
+```
+
 ## API Reference
 
 ### UnifiedAI
@@ -276,6 +437,7 @@ Main entry point for the SDK. Singleton pattern for global access.
 #### Methods
 
 - `chat({String? provider, required ChatRequest request})` - Send a chat completion request
+- `chatStream({String? provider, required ChatRequest request})` - Generate streaming chat completion
 - `embed({String? provider, required EmbeddingRequest request})` - Generate embeddings
 - `generateImage({String? provider, required ImageRequest request})` - Generate images
 - `getProvider(String id)` - Get a provider by ID
@@ -292,6 +454,9 @@ ChatRequest({
   String? model,
   int? maxTokens,
   double? temperature,
+  double? topP,
+  int? n,
+  bool? stream,
   // ... more options
 })
 ```
@@ -312,6 +477,7 @@ ImageRequest({
   required String prompt,
   ImageSize? size,
   int? n,
+  String? quality,
   // ... more options
 })
 ```
@@ -337,6 +503,7 @@ EmbeddingResponse({
   required List<EmbeddingData> embeddings,
   required String model,
   required String provider,
+  Usage? usage,
 })
 ```
 
@@ -350,7 +517,7 @@ ImageResponse({
 })
 ```
 
-## Error Types
+### Error Types
 
 The SDK uses structured error types for better error handling:
 
@@ -394,14 +561,23 @@ retryPolicy: RetryPolicy(
 
 See the `example/` directory for complete examples:
 
-- **Simple Chat**: `example/simple_chat/main.dart` - Basic chat completion example
+- **01_simple_chat**: Basic chat completion example
+- **02_streaming_chat**: Real-time streaming chat responses
+- **03_embeddings_search**: Semantic search using embeddings
+- **04_image_generation**: AI-powered image generation
+- **05_multi_provider**: Using multiple providers with auto-routing
+- **06_error_handling**: Comprehensive error handling patterns
+- **07_telemetry**: Observability and monitoring
+- **08_provider_health**: Provider health checking and monitoring
 
 Run an example:
 
 ```bash
 export OPENAI_API_KEY='sk-your-key-here'
-dart run example/simple_chat/main.dart
+dart run example/01_simple_chat/main.dart
 ```
+
+For more details, see [example/README.md](example/README.md).
 
 ## Requirements
 
@@ -414,6 +590,7 @@ This package depends on:
 
 - `http` ^1.2.0 - For HTTP requests
 - `meta` ^1.12.0 - For annotations
+- `collection` ^1.18.0 - For collection utilities
 
 ## Contributing
 
