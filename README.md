@@ -49,7 +49,7 @@ Add `unified_ai_sdk` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  unified_ai_sdk: ^1.0.0
+  unified_ai_sdk: ^0.0.1
 ```
 
 Then run:
