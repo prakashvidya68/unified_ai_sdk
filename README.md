@@ -339,25 +339,6 @@ final config = UnifiedAIConfig(
 );
 ```
 
-### Configuration with Caching
-
-```dart
-final config = UnifiedAIConfig(
-  defaultProvider: 'openai',
-  perProviderConfig: {
-    'openai': ProviderConfig(
-      id: 'openai',
-      auth: ApiKeyAuth(apiKey: 'sk-...'),
-    ),
-  },
-  cache: CacheConfig(
-    backend: CacheBackendType.memory,
-    defaultTTL: Duration(hours: 1),
-    maxSizeMB: 100,
-  ),
-);
-```
-
 ### Custom Authentication
 
 ```dart

@@ -1,4 +1,3 @@
-import '../cache/cache_config.dart';
 import '../error/error_types.dart';
 import '../retry/retry_policy.dart';
 import '../telemetry/telemetry_handler.dart';
@@ -12,7 +11,6 @@ import 'provider_config.dart';
 ///
 /// **Key Features:**
 /// - **Provider configuration**: Map of provider configurations
-/// - **Caching**: Cache configuration for response caching
 /// - **Telemetry**: List of telemetry handlers for observability
 /// - **Retry policy**: Configuration for retry behavior
 /// - **Default provider**: Optional default provider ID
@@ -34,7 +32,6 @@ import 'provider_config.dart';
 ///       ),
 ///     ),
 ///   },
-///   cache: CacheConfig.defaults(),
 ///   retryPolicy: RetryPolicy.defaults(),
 /// );
 ///
@@ -78,21 +75,6 @@ class UnifiedAIConfig {
   /// ```
   final Map<String, ProviderConfig> perProviderConfig;
 
-  /// Cache configuration.
-  ///
-  /// Controls how responses are cached to reduce API costs and improve
-  /// response times. Defaults to [CacheConfig.defaults()] if not specified.
-  ///
-  /// **Example:**
-  /// ```dart
-  /// cache: CacheConfig(
-  ///   backend: CacheBackendType.memory,
-  ///   defaultTTL: Duration(hours: 1),
-  ///   maxSizeMB: 100,
-  /// ),
-  /// ```
-  final CacheConfig cache;
-
   /// List of telemetry handlers.
   ///
   /// Telemetry handlers are used for logging, metrics collection, and
@@ -134,7 +116,6 @@ class UnifiedAIConfig {
   ///   in [perProviderConfig] if provided.
   /// - [perProviderConfig]: Map of provider configurations. Required and
   ///   must not be empty.
-  /// - [cache]: Cache configuration. Defaults to [CacheConfig.defaults()].
   /// - [telemetryHandlers]: List of telemetry handlers. Defaults to empty list.
   /// - [retryPolicy]: Retry policy configuration. Defaults to [RetryPolicy.defaults()].
   ///
@@ -157,11 +138,9 @@ class UnifiedAIConfig {
   UnifiedAIConfig({
     this.defaultProvider,
     required this.perProviderConfig,
-    CacheConfig? cache,
     List<TelemetryHandler>? telemetryHandlers,
     RetryPolicy? retryPolicy,
-  })  : cache = cache ?? CacheConfig.defaults(),
-        telemetryHandlers = telemetryHandlers ?? const [],
+  })  : telemetryHandlers = telemetryHandlers ?? const [],
         retryPolicy = retryPolicy ?? RetryPolicy.defaults() {
     // Validate that at least one provider is configured
     if (perProviderConfig.isEmpty) {
@@ -208,16 +187,10 @@ class UnifiedAIConfig {
   /// final configWithDefault = baseConfig.copyWith(
   ///   defaultProvider: 'openai',
   /// );
-  ///
-  /// // Create a copy with different cache config
-  /// final configWithCache = baseConfig.copyWith(
-  ///   cache: CacheConfig(backend: CacheBackendType.objectbox),
-  /// );
   /// ```
   UnifiedAIConfig copyWith({
     String? defaultProvider,
     Map<String, ProviderConfig>? perProviderConfig,
-    CacheConfig? cache,
     List<TelemetryHandler>? telemetryHandlers,
     RetryPolicy? retryPolicy,
     bool clearDefaultProvider = false,
@@ -227,7 +200,6 @@ class UnifiedAIConfig {
           ? null
           : (defaultProvider ?? this.defaultProvider),
       perProviderConfig: perProviderConfig ?? this.perProviderConfig,
-      cache: cache ?? this.cache,
       telemetryHandlers: telemetryHandlers ?? this.telemetryHandlers,
       retryPolicy: retryPolicy ?? this.retryPolicy,
     );
@@ -239,7 +211,6 @@ class UnifiedAIConfig {
     return other is UnifiedAIConfig &&
         other.defaultProvider == defaultProvider &&
         _mapEquals(other.perProviderConfig, perProviderConfig) &&
-        other.cache == cache &&
         _listEquals(other.telemetryHandlers, telemetryHandlers) &&
         other.retryPolicy == retryPolicy;
   }
@@ -250,7 +221,6 @@ class UnifiedAIConfig {
       defaultProvider,
       Object.hashAll(
           perProviderConfig.entries.map((e) => Object.hash(e.key, e.value))),
-      cache,
       Object.hashAll(telemetryHandlers),
       retryPolicy,
     );
@@ -266,7 +236,6 @@ class UnifiedAIConfig {
 
     return 'UnifiedAIConfig('
         '$providerCount provider(s): [$providerList]$defaultStr, '
-        'cache: $cache, '
         'telemetry: $telemetryCount handler(s), '
         'retryPolicy: configured)';
   }

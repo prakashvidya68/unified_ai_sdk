@@ -102,6 +102,3 @@ export 'src/telemetry/metrics_collector.dart';
 
 // Retry
 export 'src/retry/retry_policy.dart';
-
-// Cache
-export 'src/cache/cache_config.dart';

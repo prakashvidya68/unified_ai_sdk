@@ -25,10 +25,3 @@ const int defaultMaxTokens = 1000;
 ///
 /// Used when [temperature] is not explicitly specified in a request.
 const double defaultTemperature = 0.7;
-
-/// Default time-to-live (TTL) for cached responses.
-///
-/// Determines how long cached responses remain valid before expiring.
-/// Cached responses help reduce API costs and improve response times for
-/// repeated or similar requests.
-const Duration defaultCacheTTL = Duration(hours: 1);

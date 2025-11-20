@@ -22,24 +22,15 @@ void main() {
       expect(defaultTemperature, lessThanOrEqualTo(1.0));
       expect(defaultTemperature, equals(0.7));
     });
-
-    test('defaultCacheTTL should be a valid Duration', () {
-      expect(defaultCacheTTL, isA<Duration>());
-      expect(defaultCacheTTL.inHours, equals(1));
-      expect(defaultCacheTTL.inMinutes, equals(60));
-      expect(defaultCacheTTL.inSeconds, equals(3600));
-    });
   });
 
   group('Constants Usage', () {
     test('constants can be used in variable assignments', () {
       final maxTokens = defaultMaxTokens;
       final temperature = defaultTemperature;
-      final cacheTTL = defaultCacheTTL;
 
       expect(maxTokens, equals(1000));
       expect(temperature, equals(0.7));
-      expect(cacheTTL.inHours, equals(1));
     });
 
     test('constants can be used in calculations', () {
@@ -50,10 +41,6 @@ void main() {
       // Example: Calculate token budget
       final tokenBudget = defaultMaxTokens * 2;
       expect(tokenBudget, equals(2000));
-
-      // Example: Calculate cache expiry time
-      final expiryTime = DateTime.now().add(defaultCacheTTL);
-      expect(expiryTime.isAfter(DateTime.now()), isTrue);
     });
 
     test('constants can be used in conditional logic', () {

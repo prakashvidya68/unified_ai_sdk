@@ -1,5 +1,4 @@
 import 'package:test/test.dart';
-import 'package:unified_ai_sdk/src/cache/cache_config.dart';
 import 'package:unified_ai_sdk/src/core/authentication.dart';
 import 'package:unified_ai_sdk/src/core/config.dart';
 import 'package:unified_ai_sdk/src/core/provider_config.dart';
@@ -42,16 +41,11 @@ void main() {
         expect(config.perProviderConfig['test-provider'],
             equals(testProviderConfig));
         expect(config.defaultProvider, isNull);
-        expect(config.cache, isA<CacheConfig>());
         expect(config.telemetryHandlers, isEmpty);
         expect(config.retryPolicy, isA<RetryPolicy>());
       });
 
       test('should create instance with all fields', () {
-        final cache = CacheConfig(
-          backend: CacheBackendType.objectbox,
-          defaultTTL: Duration(hours: 24),
-        );
         final telemetryHandlers = [MockTelemetryHandler()];
         final retryPolicy = RetryPolicy();
 
@@ -60,25 +54,13 @@ void main() {
           perProviderConfig: {
             'test-provider': testProviderConfig,
           },
-          cache: cache,
           telemetryHandlers: telemetryHandlers,
           retryPolicy: retryPolicy,
         );
 
         expect(config.defaultProvider, equals('test-provider'));
-        expect(config.cache, equals(cache));
         expect(config.telemetryHandlers, equals(telemetryHandlers));
         expect(config.retryPolicy, equals(retryPolicy));
-      });
-
-      test('should use default cache when not provided', () {
-        final config = UnifiedAIConfig(
-          perProviderConfig: {
-            'test-provider': testProviderConfig,
-          },
-        );
-
-        expect(config.cache, equals(CacheConfig.defaults()));
       });
 
       test('should use empty telemetry handlers when not provided', () {
@@ -190,7 +172,6 @@ void main() {
 
         expect(copy.defaultProvider, equals(original.defaultProvider));
         expect(copy.perProviderConfig, equals(original.perProviderConfig));
-        expect(copy.cache, equals(original.cache));
         expect(copy.telemetryHandlers, equals(original.telemetryHandlers));
         expect(copy.retryPolicy, equals(original.retryPolicy));
         expect(copy, equals(original));
@@ -243,24 +224,6 @@ void main() {
 
         expect(copy.perProviderConfig.length, equals(1));
         expect(copy.perProviderConfig['provider-2'], equals(newProvider));
-      });
-
-      test('should create copy with updated cache', () {
-        final original = UnifiedAIConfig(
-          perProviderConfig: {
-            'test-provider': testProviderConfig,
-          },
-        );
-
-        final newCache = CacheConfig(
-          backend: CacheBackendType.objectbox,
-          defaultTTL: Duration(hours: 24),
-        );
-
-        final copy = original.copyWith(cache: newCache);
-
-        expect(copy.cache, equals(newCache));
-        expect(copy.cache, isNot(equals(original.cache)));
       });
 
       test('should create copy with updated telemetryHandlers', () {
@@ -373,29 +336,6 @@ void main() {
 
         expect(config1, isNot(equals(config2)));
       });
-
-      test('should not be equal when cache differs', () {
-        final config1 = UnifiedAIConfig(
-          perProviderConfig: {
-            'test-provider': testProviderConfig,
-          },
-          cache: CacheConfig(
-            backend: CacheBackendType.memory,
-            defaultTTL: Duration(hours: 1),
-          ),
-        );
-        final config2 = UnifiedAIConfig(
-          perProviderConfig: {
-            'test-provider': testProviderConfig,
-          },
-          cache: CacheConfig(
-            backend: CacheBackendType.objectbox,
-            defaultTTL: Duration(hours: 1),
-          ),
-        );
-
-        expect(config1, isNot(equals(config2)));
-      });
     });
 
     group('toString', () {
@@ -429,17 +369,6 @@ void main() {
 
         final str = config.toString();
         expect(str, contains('default: test-provider'));
-      });
-
-      test('should include cache information', () {
-        final config = UnifiedAIConfig(
-          perProviderConfig: {
-            'test-provider': testProviderConfig,
-          },
-        );
-
-        final str = config.toString();
-        expect(str, contains('cache:'));
       });
 
       test('should include telemetry handler count', () {
@@ -478,17 +407,11 @@ void main() {
               settings: {'defaultModel': 'claude-3-opus'},
             ),
           },
-          cache: CacheConfig(
-            backend: CacheBackendType.objectbox,
-            defaultTTL: Duration(hours: 24),
-            maxSizeMB: 500,
-          ),
           telemetryHandlers: [MockTelemetryHandler()],
         );
 
         expect(config.defaultProvider, equals('openai'));
         expect(config.perProviderConfig.length, equals(2));
-        expect(config.cache.backend, equals(CacheBackendType.objectbox));
         expect(config.telemetryHandlers.length, equals(1));
       });
     });
