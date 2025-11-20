@@ -687,23 +687,140 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
       defaultModel: _defaultModel,
     ) as OpenAIVideoRequest;
 
-    // Make HTTP POST request to videos/generations endpoint
-    final response = await _http.post(
-      '$_baseUrl/videos/generations',
-      body: jsonEncode(openaiRequest.toJson()),
+    // Step 1: Create video generation job
+    // OpenAI video generation requires multipart/form-data
+    // We need to use the underlying http client directly for multipart
+    final multipartRequest = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_baseUrl/videos'),
     );
+
+    // Add authentication headers
+    final authHeaders = _http.defaultHeaders;
+    multipartRequest.headers.addAll(authHeaders);
+
+    // Add form fields
+    final formFields = openaiRequest.toFormFields();
+    multipartRequest.fields.addAll(
+      formFields.map((key, value) => MapEntry(key, value.toString())),
+    );
+
+    // Send the request using the underlying client
+    final streamedResponse = await _httpClient.send(multipartRequest);
+    final response = await http.Response.fromStream(streamedResponse);
 
     // Check for HTTP errors
     if (response.statusCode != 200) {
       throw ErrorMapper.mapHttpError(response, id);
     }
 
-    // Parse response JSON
+    // Parse response JSON - this is a video job, not the actual video
     final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
-    final openaiResponse = OpenAIVideoResponse.fromJson(responseJson);
+    final videoJob = OpenAIVideoJob.fromJson(responseJson);
 
-    // Map OpenAI response to SDK format
-    return _mapper.mapVideoResponse(openaiResponse);
+    // Check if job failed immediately
+    if (videoJob.isFailed) {
+      throw ClientError(
+        message:
+            'Video generation failed: ${videoJob.error ?? "Unknown error"}',
+        code: 'VIDEO_GENERATION_FAILED',
+        provider: id,
+      );
+    }
+
+    // Step 2: Poll for completion (if not already completed)
+    OpenAIVideoJob completedJob = videoJob;
+    if (!videoJob.isCompleted) {
+      completedJob = await _pollVideoJob(videoJob.id);
+    }
+
+    // Step 3: Retrieve the actual video content
+    final videoContent = await _getVideoContent(completedJob.id);
+
+    // Step 4: Map to SDK format
+    // Cast to OpenAIMapper to access the new method
+    final openAIMapper = _mapper as OpenAIMapper;
+    return openAIMapper.mapVideoResponseFromContent(
+      completedJob,
+      videoContent,
+      request,
+    );
+  }
+
+  /// Polls a video job until it completes or fails.
+  ///
+  /// Polls the video job status endpoint until the job is completed or failed.
+  /// Uses exponential backoff between polls.
+  Future<OpenAIVideoJob> _pollVideoJob(String videoId) async {
+    const maxAttempts = 60; // Maximum number of polling attempts
+    const initialDelay = Duration(seconds: 2);
+    const maxDelay = Duration(seconds: 30);
+
+    Duration delay = initialDelay;
+    int attempts = 0;
+
+    while (attempts < maxAttempts) {
+      // Wait before polling (except first attempt)
+      if (attempts > 0) {
+        await Future<void>.delayed(delay);
+        // Exponential backoff with max cap
+        delay = Duration(
+          milliseconds: (delay.inMilliseconds * 1.5).round().clamp(
+                initialDelay.inMilliseconds,
+                maxDelay.inMilliseconds,
+              ),
+        );
+      }
+
+      // Check job status
+      final response = await _http.get('$_baseUrl/videos/$videoId');
+
+      if (response.statusCode != 200) {
+        throw ErrorMapper.mapHttpError(response, id);
+      }
+
+      final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+      final job = OpenAIVideoJob.fromJson(responseJson);
+
+      if (job.isCompleted) {
+        return job;
+      }
+
+      if (job.isFailed) {
+        throw ClientError(
+          message: 'Video generation failed: ${job.error ?? "Unknown error"}',
+          code: 'VIDEO_GENERATION_FAILED',
+          provider: id,
+        );
+      }
+
+      attempts++;
+    }
+
+    // Timeout after max attempts
+    throw ClientError(
+      message: 'Video generation timed out after $maxAttempts polling attempts',
+      code: 'VIDEO_GENERATION_TIMEOUT',
+      provider: id,
+    );
+  }
+
+  /// Retrieves the actual video content for a completed video job.
+  ///
+  /// Makes a GET request to `/v1/videos/{id}/content` to download the video file.
+  Future<List<int>> _getVideoContent(String videoId) async {
+    final response = await _http.get(
+      '$_baseUrl/videos/$videoId/content',
+      headers: {
+        'Accept': 'video/*',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw ErrorMapper.mapHttpError(response, id);
+    }
+
+    return response.bodyBytes;
   }
 
   @override

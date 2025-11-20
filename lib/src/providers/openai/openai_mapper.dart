@@ -25,6 +25,7 @@
 /// final chatResponse = mapper.mapChatResponse(openaiResponse);
 /// ```
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -945,6 +946,69 @@ class OpenAIMapper implements ProviderMapper {
     return VideoResponse(
       assets: assets,
       model: response.model,
+      provider: 'openai',
+      timestamp: timestamp,
+      metadata: metadata,
+    );
+  }
+
+  /// Maps a video job and content bytes to a VideoResponse.
+  ///
+  /// This method is used when the video is retrieved via the two-step process:
+  /// 1. Create video job (returns OpenAIVideoJob)
+  /// 2. Retrieve video content (returns bytes)
+  ///
+  /// The video content bytes are encoded as base64 and included in the response.
+  VideoResponse mapVideoResponseFromContent(
+    OpenAIVideoJob job,
+    List<int> videoContentBytes,
+    VideoRequest request,
+  ) {
+    // Parse size string (e.g., "1280x720") to width and height
+    int? width;
+    int? height;
+    if (job.size != null) {
+      final sizeParts = job.size!.split('x');
+      if (sizeParts.length == 2) {
+        width = int.tryParse(sizeParts[0]);
+        height = int.tryParse(sizeParts[1]);
+      }
+    }
+
+    // Encode video content as base64
+    final base64Content = base64Encode(videoContentBytes);
+
+    // Create a single video asset from the content
+    final asset = VideoAsset(
+      base64: base64Content,
+      url: null, // Content is provided as base64, not URL
+      width: width,
+      height: height,
+      duration: job.seconds,
+      frameRate: null, // Not provided in job response
+      revisedPrompt: null, // Not provided in job response
+    );
+
+    // Convert timestamp from Unix seconds to DateTime
+    final timestamp = DateTime.fromMillisecondsSinceEpoch(job.createdAt * 1000);
+
+    // Build metadata from job fields
+    final metadata = <String, dynamic>{
+      'id': job.id,
+      'object': job.object,
+      'created_at': job.createdAt,
+      'status': job.status,
+      if (job.progress != null) 'progress': job.progress,
+      if (job.completedAt != null) 'completed_at': job.completedAt,
+      if (job.expiresAt != null) 'expires_at': job.expiresAt,
+      if (job.remixedFromVideoId != null)
+        'remixed_from_video_id': job.remixedFromVideoId,
+      if (job.error != null) 'error': job.error,
+    };
+
+    return VideoResponse(
+      assets: [asset],
+      model: job.model,
       provider: 'openai',
       timestamp: timestamp,
       metadata: metadata,

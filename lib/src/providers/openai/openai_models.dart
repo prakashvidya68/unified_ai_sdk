@@ -1580,7 +1580,7 @@ class OpenAISttRequest {
 
 /// Represents a video generation request in OpenAI's API format.
 ///
-/// This model matches the structure expected by OpenAI's `/v1/videos/generations`
+/// This model matches the structure expected by OpenAI's `/v1/videos`
 /// endpoint for Sora video generation.
 ///
 /// **OpenAI API Reference:**
@@ -1656,6 +1656,63 @@ class OpenAIVideoRequest {
     };
   }
 
+  /// Converts aspect ratio string (e.g., "16:9") to size string (e.g., "1280x720").
+  ///
+  /// OpenAI API expects size in widthxheight format, not aspect ratio.
+  /// Common aspect ratios are converted to standard video dimensions.
+  String? _aspectRatioToSize(String? aspectRatio) {
+    if (aspectRatio == null) return null;
+
+    // Convert common aspect ratios to standard video dimensions
+    switch (aspectRatio) {
+      case '16:9':
+        return '1280x720'; // HD 720p
+      case '9:16':
+        return '720x1280'; // Vertical/Portrait
+      case '1:1':
+        return '1024x1024'; // Square
+      case '4:3':
+        return '1024x768'; // Standard
+      case '21:9':
+        return '1920x822'; // Ultra-wide
+      default:
+        // Try to parse and convert aspect ratio to reasonable dimensions
+        final parts = aspectRatio.split(':');
+        if (parts.length == 2) {
+          final widthRatio = int.tryParse(parts[0]);
+          final heightRatio = int.tryParse(parts[1]);
+          if (widthRatio != null && heightRatio != null) {
+            // Use a base height and calculate width to maintain aspect ratio
+            // Using 720 as base height for common aspect ratios
+            final baseHeight = 720;
+            final calculatedWidth =
+                (baseHeight * widthRatio / heightRatio).round();
+            return '${calculatedWidth}x$baseHeight';
+          }
+        }
+        // If we can't parse it, return null (will be omitted from request)
+        return null;
+    }
+  }
+
+  /// Converts this request to a map for multipart form data.
+  ///
+  /// This is used when making requests to the OpenAI video generation API
+  /// which requires multipart/form-data format.
+  Map<String, dynamic> toFormFields() {
+    final size = _aspectRatioToSize(aspectRatio);
+    return {
+      'prompt': prompt,
+      if (model != null) 'model': model,
+      if (duration != null) 'seconds': duration.toString(),
+      if (size != null) 'size': size,
+      if (quality != null) 'quality': quality,
+      if (seed != null) 'seed': seed.toString(),
+      if (user != null) 'user': user,
+      // Note: frame_rate is not a valid parameter for OpenAI video API
+    };
+  }
+
   /// Creates an [OpenAIVideoRequest] from a JSON map.
   factory OpenAIVideoRequest.fromJson(Map<String, dynamic> json) {
     return OpenAIVideoRequest(
@@ -1677,10 +1734,135 @@ class OpenAIVideoRequest {
   }
 }
 
+/// Represents a video generation job in OpenAI's API format.
+///
+/// This model matches the structure returned by OpenAI's `/v1/videos` endpoint
+/// when creating a video generation job. The job must be polled until completion,
+/// then the actual video content can be retrieved via `/v1/videos/{id}/content`.
+class OpenAIVideoJob {
+  /// Unique identifier for the video generation job.
+  final String id;
+
+  /// Object type, always "video" for video jobs.
+  final String object;
+
+  /// Timestamp when the video job was created.
+  ///
+  /// Unix timestamp in seconds.
+  final int createdAt;
+
+  /// Current status of the video generation.
+  ///
+  /// Possible values: "queued", "processing", "completed", "failed"
+  final String status;
+
+  /// Progress percentage (0-100) of video generation.
+  final int? progress;
+
+  /// The model used for video generation.
+  final String model;
+
+  /// The prompt used for video generation.
+  final String prompt;
+
+  /// Duration of the video in seconds.
+  final int? seconds;
+
+  /// Size/resolution of the video (e.g., "1280x720").
+  final String? size;
+
+  /// Timestamp when the video was completed (null if not completed).
+  final int? completedAt;
+
+  /// Error information if the job failed (null if no error).
+  final Map<String, dynamic>? error;
+
+  /// Timestamp when the video will expire (null if no expiration).
+  final int? expiresAt;
+
+  /// ID of the video this was remixed from (null if not a remix).
+  final String? remixedFromVideoId;
+
+  /// Creates a new [OpenAIVideoJob] instance.
+  OpenAIVideoJob({
+    required this.id,
+    required this.object,
+    required this.createdAt,
+    required this.status,
+    this.progress,
+    required this.model,
+    required this.prompt,
+    this.seconds,
+    this.size,
+    this.completedAt,
+    this.error,
+    this.expiresAt,
+    this.remixedFromVideoId,
+  });
+
+  /// Creates an [OpenAIVideoJob] from a JSON map.
+  factory OpenAIVideoJob.fromJson(Map<String, dynamic> json) {
+    return OpenAIVideoJob(
+      id: json['id'] as String,
+      object: json['object'] as String? ?? 'video',
+      createdAt: json['created_at'] as int,
+      status: json['status'] as String,
+      progress: json['progress'] as int?,
+      model: json['model'] as String,
+      prompt: json['prompt'] as String,
+      seconds:
+          int.tryParse(json['seconds'] as String) ?? json['seconds'] as int?,
+      size: json['size'] as String?,
+      completedAt: json['completed_at'] as int?,
+      error: json['error'] as Map<String, dynamic>?,
+      expiresAt: json['expires_at'] as int?,
+      remixedFromVideoId: json['remixed_from_video_id'] as String?,
+    );
+  }
+
+  /// Converts this job to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'object': object,
+      'created_at': createdAt,
+      'status': status,
+      if (progress != null) 'progress': progress,
+      'model': model,
+      'prompt': prompt,
+      if (seconds != null) 'seconds': seconds,
+      if (size != null) 'size': size,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (error != null) 'error': error,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (remixedFromVideoId != null)
+        'remixed_from_video_id': remixedFromVideoId,
+    };
+  }
+
+  /// Whether the job is completed.
+  bool get isCompleted => status == 'completed';
+
+  /// Whether the job has failed.
+  bool get isFailed => status == 'failed';
+
+  /// Whether the job is still processing.
+  bool get isProcessing => status == 'queued' || status == 'processing';
+
+  @override
+  String toString() {
+    return 'OpenAIVideoJob(id: $id, status: $status, model: $model)';
+  }
+}
+
 /// Represents a video generation response in OpenAI's API format.
 ///
 /// This model matches the structure returned by OpenAI's `/v1/videos/generations`
 /// endpoint.
+///
+/// Note: This is kept for backward compatibility, but OpenAI's actual API
+/// returns an OpenAIVideoJob first, then the video content must be retrieved
+/// separately via `/v1/videos/{id}/content`.
 class OpenAIVideoResponse {
   /// Unique identifier for the video generation.
   final String id;

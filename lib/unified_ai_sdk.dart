@@ -69,6 +69,8 @@ export 'src/models/requests/embedding_request.dart';
 export 'src/models/requests/image_request.dart';
 export 'src/models/requests/stt_request.dart';
 export 'src/models/requests/tts_request.dart';
+export 'src/models/requests/video_request.dart';
+export 'src/models/requests/video_analysis_request.dart';
 
 // Models - Responses
 export 'src/models/responses/chat_response.dart';
@@ -77,6 +79,8 @@ export 'src/models/responses/embedding_response.dart';
 export 'src/models/responses/image_response.dart';
 export 'src/models/responses/audio_response.dart';
 export 'src/models/responses/transcription_response.dart';
+export 'src/models/responses/video_response.dart';
+export 'src/models/responses/video_analysis_response.dart';
 
 // Models - Common
 export 'src/models/common/message.dart';
