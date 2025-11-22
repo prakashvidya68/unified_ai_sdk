@@ -241,9 +241,9 @@ class OpenAIMapper implements ProviderMapper {
           ? List<Map<String, dynamic>>.from(openaiOptions['tools'] as List)
           : null,
       toolChoice: openaiOptions['tool_choice'] ?? openaiOptions['toolChoice'],
-      functionCall: openaiOptions['function_call'] as String? ??
-          openaiOptions['functionCall'] as String?,
-      functions: openaiOptions['functions'] as Map<String, dynamic>?,
+      // functionCall: openaiOptions['function_call'] as String? ??
+      //     openaiOptions['functionCall'] as String?,
+      // functions: openaiOptions['functions'] as Map<String, dynamic>?,
     );
   }
 

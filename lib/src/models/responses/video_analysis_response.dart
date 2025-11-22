@@ -12,6 +12,17 @@ class DetectedObject {
   /// Timestamp in the video where this object appears (in seconds).
   final double? timestamp;
 
+  /// Creates a new [DetectedObject] instance.
+  /// [name], [confidence], [boundingBox], and [timestamp] are required.
+  /// [boundingBox] and [timestamp] are optional.
+  /// Example Usage:
+  /// ```dart
+  /// final detectedObject = DetectedObject(
+  ///   name: 'Person',
+  ///   confidence: 0.95,
+  ///   boundingBox: {'x': 100, 'y': 100, 'width': 100, 'height': 100},
+  ///   timestamp: 10.0,
+  /// );
   const DetectedObject({
     required this.name,
     required this.confidence,
@@ -19,6 +30,21 @@ class DetectedObject {
     this.timestamp,
   });
 
+  /// Converts this [DetectedObject] to a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = detectedObject.toJson();
+  /// print(json);
+  /// ```
+  /// Example Response:
+  /// ```json
+  /// {
+  ///   "name": "Person",
+  ///   "confidence": 0.95,
+  ///   "bounding_box": {"x": 100, "y": 100, "width": 100, "height": 100},
+  ///   "timestamp": 10.0
+  /// }
+  /// ```
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -28,6 +54,25 @@ class DetectedObject {
     };
   }
 
+  /// Creates a new [DetectedObject] instance from a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final detectedObject = DetectedObject.fromJson(json);
+  /// print(detectedObject);
+  /// ```
+  /// Example Response:
+  /// created a new [DetectedObject] instance from a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = {
+  ///   "name": "Person",
+  ///   "confidence": 0.95,
+  ///   "bounding_box": {"x": 100, "y": 100, "width": 100, "height": 100},
+  ///   "timestamp": 10.0
+  /// };
+  /// final detectedObject = DetectedObject.fromJson(json);
+  /// print(detectedObject);
+  /// ```
   factory DetectedObject.fromJson(Map<String, dynamic> json) {
     return DetectedObject(
       name: json['name'] as String,
@@ -53,6 +98,15 @@ class DetectedScene {
   /// End time of the scene (in seconds).
   final double endTime;
 
+  /// Creates a new [DetectedScene] instance.
+  /// [description], [confidence], [startTime], and [endTime] are required.
+  /// Example Usage:
+  /// ```dart
+  /// final detectedScene = DetectedScene(
+  ///   description: 'A person is walking down the street',
+  ///   confidence: 0.95,
+  ///   startTime: 10.0,
+  ///   endTime: 20.0,
   const DetectedScene({
     required this.description,
     required this.confidence,
@@ -60,6 +114,21 @@ class DetectedScene {
     required this.endTime,
   });
 
+  /// Converts this [DetectedScene] to a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = detectedScene.toJson();
+  /// print(json);
+  /// ```
+  /// Example Response:
+  /// ```json
+  /// {
+  ///   "description": "A person is walking down the street",
+  ///   "confidence": 0.95,
+  ///   "start_time": 10.0,
+  ///   "end_time": 20.0
+  /// }
+  /// ```
   Map<String, dynamic> toJson() {
     return {
       'description': description,
@@ -69,6 +138,18 @@ class DetectedScene {
     };
   }
 
+  /// Creates a new [DetectedScene] instance from a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = {
+  ///   "description": "A person is walking down the street",
+  ///   "confidence": 0.95,
+  ///   "start_time": 10.0,
+  ///   "end_time": 20.0
+  /// };
+  /// final detectedScene = DetectedScene.fromJson(json);
+  /// print(detectedScene);
+  /// ```
   factory DetectedScene.fromJson(Map<String, dynamic> json) {
     return DetectedScene(
       description: json['description'] as String,
@@ -93,6 +174,14 @@ class DetectedAction {
   /// End time of the action (in seconds).
   final double? endTime;
 
+  /// Creates a new [DetectedAction] instance.
+  /// [name], [confidence], [startTime], and [endTime] are required.
+  /// [startTime] and [endTime] are optional.
+  /// Example Usage:
+  /// ```dart
+  /// final detectedAction = DetectedAction(
+  ///   name: 'Walking',
+  ///   confidence: 0.95,
   const DetectedAction({
     required this.name,
     required this.confidence,
@@ -100,6 +189,21 @@ class DetectedAction {
     this.endTime,
   });
 
+  /// Converts this [DetectedAction] to a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = detectedAction.toJson();
+  /// print(json);
+  /// ```
+  /// Example Response:
+  /// ```json
+  /// {
+  ///   "name": "Walking",
+  ///   "confidence": 0.95,
+  ///   "start_time": 10.0,
+  ///   "end_time": 20.0
+  /// }
+  /// ```
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -109,6 +213,18 @@ class DetectedAction {
     };
   }
 
+  /// Creates a new [DetectedAction] instance from a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = {
+  ///   "name": "Walking",
+  ///   "confidence": 0.95,
+  ///   "start_time": 10.0,
+  ///   "end_time": 20.0
+  /// };
+  /// final detectedAction = DetectedAction.fromJson(json);
+  /// print(detectedAction);
+  /// ```
   factory DetectedAction.fromJson(Map<String, dynamic> json) {
     return DetectedAction(
       name: json['name'] as String,
@@ -133,6 +249,14 @@ class ExtractedText {
   /// Timestamp in the video where this text appears (in seconds).
   final double? timestamp;
 
+  /// Creates a new [ExtractedText] instance.
+  /// [text], [confidence], [boundingBox], and [timestamp] are required.
+  /// [boundingBox] and [timestamp] are optional.
+  /// Example Usage:
+  /// ```dart
+  /// final extractedText = ExtractedText(
+  ///   text: 'Hello, world!',
+  ///   confidence: 0.95,
   const ExtractedText({
     required this.text,
     required this.confidence,
@@ -140,6 +264,21 @@ class ExtractedText {
     this.timestamp,
   });
 
+  /// Converts this [ExtractedText] to a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = extractedText.toJson();
+  /// print(json);
+  /// ```
+  /// Example Response:
+  /// ```json
+  /// {
+  ///   "text": "Hello, world!",
+  ///   "confidence": 0.95,
+  ///   "bounding_box": {"x": 100, "y": 100, "width": 100, "height": 100},
+  ///   "timestamp": 10.0
+  /// }
+  /// ```
   Map<String, dynamic> toJson() {
     return {
       'text': text,
@@ -149,6 +288,18 @@ class ExtractedText {
     };
   }
 
+  /// Creates a new [ExtractedText] instance from a JSON map.
+  /// Example Usage:
+  /// ```dart
+  /// final json = {
+  ///   "text": "Hello, world!",
+  ///   "confidence": 0.95,
+  ///   "bounding_box": {"x": 100, "y": 100, "width": 100, "height": 100},
+  ///   "timestamp": 10.0
+  /// };
+  /// final extractedText = ExtractedText.fromJson(json);
+  /// print(extractedText);
+  /// ```
   factory ExtractedText.fromJson(Map<String, dynamic> json) {
     return ExtractedText(
       text: json['text'] as String,
@@ -382,4 +533,3 @@ class VideoAnalysisResponse {
     return 'VideoAnalysisResponse(objects: ${objects.length}, scenes: ${scenes.length}, actions: ${actions.length}, text: ${text.length}, labels: ${labels.length}, model: $model, provider: $provider)';
   }
 }
-

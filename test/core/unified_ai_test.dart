@@ -67,7 +67,7 @@ void main() {
       try {
         final instance = UnifiedAI.instance;
         await instance.dispose();
-      } catch (e) {
+      } on Exception catch (_) {
         // Instance not initialized, ignore
       }
     });

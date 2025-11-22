@@ -271,8 +271,8 @@ class OpenAIChatRequest {
     if (stream != null) json['stream'] = stream;
     if (tools != null) json['tools'] = tools;
     if (toolChoice != null) json['tool_choice'] = toolChoice;
-    if (functionCall != null) json['function_call'] = functionCall;
-    if (functions != null) json['functions'] = functions;
+    // if (functionCall != null) json['function_call'] = functionCall;
+    // if (functions != null) json['functions'] = functions;
 
     return json;
   }
@@ -336,8 +336,8 @@ class OpenAIChatRequest {
           ? List<Map<String, dynamic>>.from(json['tools'] as List)
           : null,
       toolChoice: json['tool_choice'],
-      functionCall: json['function_call'] as String?,
-      functions: json['functions'] as Map<String, dynamic>?,
+      // functionCall: json['function_call'] as String?,
+      // functions: json['functions'] as Map<String, dynamic>?,
     );
   }
 
@@ -1152,7 +1152,7 @@ class OpenAIEmbedding {
 
   /// The embedding vector.
   ///
-  /// Can be a List<double> for float format, or String for base64 format.
+  /// Can be a List`<double`> for float format, or String for base64 format.
   final dynamic embedding;
 
   /// The object type, always "embedding".

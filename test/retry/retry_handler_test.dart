@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:test/test.dart';
 import 'package:unified_ai_sdk/src/error/error_types.dart';
@@ -175,7 +176,8 @@ void main() {
           }
           return 'success';
         });
-      } catch (e) {
+      } on Exception catch (e) {
+        log('Error: $e');
         // Expected to fail
       }
 
@@ -196,7 +198,8 @@ void main() {
       );
       final handler = RetryHandler(policy: policy);
 
-      final retryAfterTime = DateTime.now().add(const Duration(milliseconds: 100));
+      final retryAfterTime =
+          DateTime.now().add(const Duration(milliseconds: 100));
       int attemptCount = 0;
       final stopwatch = Stopwatch()..start();
 
@@ -257,7 +260,8 @@ void main() {
       );
       final handler = RetryHandler(policy: policy);
 
-      final retryAfterTime = DateTime.now().add(const Duration(milliseconds: 200));
+      final retryAfterTime =
+          DateTime.now().add(const Duration(milliseconds: 200));
       int attemptCount = 0;
       final stopwatch = Stopwatch()..start();
 
@@ -318,7 +322,7 @@ void main() {
       expectLater(
         handler.execute(() async {
           attemptCount++;
-          throw 'String error'; // Not an Exception
+          throw Exception('String error'); // Not an Exception
         }),
         throwsA(isA<Exception>()),
       );
@@ -388,7 +392,8 @@ void main() {
           }
           return 'success';
         });
-      } catch (e) {
+      } on Exception catch (e) {
+        log('Error: $e');
         // Expected
       }
 

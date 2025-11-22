@@ -164,7 +164,7 @@ class EmbeddingResponse {
 
   /// Convenience getter for accessing embedding vectors directly.
   ///
-  /// Returns a list of vectors (List<double>) extracted from [embeddings].
+  /// Returns a list of vectors (List`<double`>) extracted from [embeddings].
   /// This is provided for backward compatibility and convenience.
   List<List<double>> get vectors {
     return embeddings.map((e) => e.vector).toList();

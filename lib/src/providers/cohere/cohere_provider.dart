@@ -519,7 +519,7 @@ class CohereProvider extends AiProvider implements ModelFetcher {
                   );
                   return;
               }
-            } catch (e) {
+            } on Exception catch (_) {
               // Skip invalid JSON chunks (may be empty or malformed)
               continue;
             } finally {

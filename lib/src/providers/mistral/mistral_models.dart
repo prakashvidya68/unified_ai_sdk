@@ -382,7 +382,7 @@ class MistralEmbedding {
 
   /// The embedding vector.
   ///
-  /// Can be a List<double> for float format, or String for base64 format.
+  /// Can be a List`<double`> for float format, or String for base64 format.
   final dynamic embedding;
 
   /// The object type, typically "embedding".

@@ -271,7 +271,7 @@ void main() {
 
         try {
           throw exception;
-        } catch (e) {
+        } on Exception catch (e) {
           expect(e, isA<Exception>());
           expect(e, isA<AiException>());
           expect(e, isA<TestAiException>());

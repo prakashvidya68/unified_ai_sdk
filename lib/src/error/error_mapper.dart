@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -98,7 +99,8 @@ class ErrorMapper {
             json['requestId'] as String? ??
             json['id'] as String?;
       }
-    } catch (_) {
+    } on Exception catch (e) {
+      log('Error parsing JSON: $e');
       // If JSON parsing fails, use the body as-is
       // This handles plain text error responses
     }
@@ -259,7 +261,7 @@ class ErrorMapper {
       if (date.isAfter(DateTime.now())) {
         return date;
       }
-    } catch (_) {
+    } on Exception catch (_) {
       // If parsing fails, return null
     }
 

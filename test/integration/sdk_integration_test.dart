@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
@@ -72,9 +73,8 @@ void main() {
       // Clean up singleton instance after each test
       try {
         UnifiedAI.instance.dispose();
-      } on Exception {
-        // Ignore if not initialized or other exceptions
-      } catch (e) {
+      } on Exception catch (e) {
+        log('Error: $e');
         // Ignore errors (StateError, etc.)
       }
       mockClient.clear();

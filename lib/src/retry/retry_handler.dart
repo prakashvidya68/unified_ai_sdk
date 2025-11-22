@@ -105,10 +105,9 @@ class RetryHandler {
         final result = await operation();
         // Success - return immediately
         return result;
-      } catch (error) {
+      } on Exception catch (error) {
         // Convert error to Exception if needed
-        final exception =
-            error is Exception ? error : Exception(error.toString());
+        final exception = error;
 
         lastException = exception;
 
