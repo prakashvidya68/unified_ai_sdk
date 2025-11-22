@@ -223,7 +223,7 @@ class ChatRequest {
   factory ChatRequest.fromJson(Map<String, dynamic> json) {
     final messagesJson = json['messages'] as List<dynamic>?;
     if (messagesJson == null || messagesJson.isEmpty) {
-      throw FormatException('messages field is required and must not be empty');
+      throw const FormatException('messages field is required and must not be empty');
     }
 
     return ChatRequest(

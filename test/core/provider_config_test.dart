@@ -29,7 +29,7 @@ void main() {
           'baseUrl': 'https://api.example.com',
           'model': 'gpt-4'
         };
-        final timeout = Duration(seconds: 30);
+        final timeout = const Duration(seconds: 30);
 
         final config = ProviderConfig(
           id: 'test-provider',
@@ -85,7 +85,7 @@ void main() {
           id: 'test',
           auth: testAuth,
           settings: {'key': 'value'},
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         final copy = original.copyWith();
@@ -142,10 +142,10 @@ void main() {
         final original = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
-        final newTimeout = Duration(seconds: 60);
+        final newTimeout = const Duration(seconds: 60);
         final copy = original.copyWith(timeout: newTimeout);
 
         expect(copy.timeout, equals(newTimeout));
@@ -156,7 +156,7 @@ void main() {
         final original = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         final copy = original.copyWith(clearTimeout: true);
@@ -169,11 +169,11 @@ void main() {
         final original = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         final copy = original.copyWith(
-          timeout: Duration(seconds: 60),
+          timeout: const Duration(seconds: 60),
           clearTimeout: true,
         );
 
@@ -219,7 +219,7 @@ void main() {
         final config = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         final json = config.toJson();
@@ -314,7 +314,7 @@ void main() {
 
         final config = ProviderConfig.fromJson(json);
 
-        expect(config.timeout, equals(Duration(seconds: 30)));
+        expect(config.timeout, equals(const Duration(seconds: 30)));
       });
 
       test('should deserialize CustomHeaderAuth from JSON', () {
@@ -426,13 +426,13 @@ void main() {
           id: 'test',
           auth: testAuth,
           settings: {'key': 'value'},
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
         final config2 = ProviderConfig(
           id: 'test',
           auth: testAuth,
           settings: {'key': 'value'},
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         expect(config1, equals(config2));
@@ -475,12 +475,12 @@ void main() {
         final config1 = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
         final config2 = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 60),
+          timeout: const Duration(seconds: 60),
         );
 
         expect(config1, isNot(equals(config2)));
@@ -490,7 +490,7 @@ void main() {
         final config1 = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
         final config2 = ProviderConfig(
           id: 'test',
@@ -516,7 +516,7 @@ void main() {
         final config = ProviderConfig(
           id: 'test',
           auth: testAuth,
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         final str = config.toString();
@@ -562,7 +562,7 @@ void main() {
           id: 'openai',
           auth: auth,
           settings: {'defaultModel': 'gpt-4'},
-          timeout: Duration(seconds: 30),
+          timeout: const Duration(seconds: 30),
         );
 
         expect(config.id, equals('openai'));
@@ -588,7 +588,7 @@ void main() {
           id: 'test',
           auth: ApiKeyAuth(apiKey: 'sk-abc123', headerName: 'x-api-key'),
           settings: {'key': 'value'},
-          timeout: Duration(seconds: 45),
+          timeout: const Duration(seconds: 45),
         );
 
         final json = original.toJson();

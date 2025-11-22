@@ -24,6 +24,7 @@
 /// final openaiResponse = OpenAIChatResponse.fromJson(apiResponse);
 /// final chatResponse = mapper.mapChatResponse(openaiResponse);
 /// ```
+library;
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -535,7 +536,7 @@ class OpenAIMapper implements ProviderMapper {
             completionTokens: response.usage!.completionTokens,
             totalTokens: response.usage!.totalTokens,
           )
-        : Usage(promptTokens: 0, completionTokens: 0, totalTokens: 0);
+        : const Usage(promptTokens: 0, completionTokens: 0, totalTokens: 0);
 
     // Convert timestamp from Unix seconds to DateTime
     final timestamp =

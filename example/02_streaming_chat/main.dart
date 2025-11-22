@@ -13,16 +13,16 @@ import 'package:unified_ai_sdk/unified_ai_sdk.dart';
 /// - Display text as it's generated
 ///
 /// **Prerequisites:**
-/// - Set `GOOGLE_API_KEY` environment variable
+/// - Set `OPENAI_API_KEY` environment variable
 ///
 /// **Run:**
 /// ```bash
 /// dart run example/02_streaming_chat/main.dart
 /// ```
 void main() async {
-  final apiKey = Platform.environment['GOOGLE_API_KEY'];
+  final apiKey = Platform.environment['OPENAI_API_KEY'];
   if (apiKey == null || apiKey.isEmpty) {
-    print('❌ Error: GOOGLE_API_KEY not set');
+    print('❌ Error: OPENAI_API_KEY not set');
     exit(1);
   }
 
@@ -30,11 +30,11 @@ void main() async {
     print('🚀 Initializing SDK...');
     await UnifiedAI.init(
       UnifiedAIConfig(
-        defaultProvider: 'google',
+        defaultProvider: 'openai',
         perProviderConfig: {
-          'google': ProviderConfig(
-            id: 'google',
-            settings: {'defaultModel': 'gemini-1.5-flash'},
+          'openai': ProviderConfig(
+            id: 'openai',
+            settings: {'defaultModel': 'gpt-5'},
             auth: ApiKeyAuth(apiKey: apiKey),
           ),
         },

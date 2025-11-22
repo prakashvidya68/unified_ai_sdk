@@ -27,15 +27,15 @@ void main() {
     group('Construction', () {
       test('should create health checker with default timeout', () {
         final checker = ProviderHealthChecker();
-        expect(checker.healthCheckTimeout, equals(Duration(seconds: 5)));
+        expect(checker.healthCheckTimeout, equals(const Duration(seconds: 5)));
         expect(checker.checkedCount, equals(0));
       });
 
       test('should create health checker with custom timeout', () {
         final checker = ProviderHealthChecker(
-          healthCheckTimeout: Duration(seconds: 10),
+          healthCheckTimeout: const Duration(seconds: 10),
         );
-        expect(checker.healthCheckTimeout, equals(Duration(seconds: 10)));
+        expect(checker.healthCheckTimeout, equals(const Duration(seconds: 10)));
       });
     });
 
@@ -70,7 +70,7 @@ void main() {
 
       test('should handle timeout errors', () async {
         final checker = ProviderHealthChecker(
-          healthCheckTimeout: Duration(milliseconds: 100),
+          healthCheckTimeout: const Duration(milliseconds: 100),
         );
         final provider = _MockSlowProvider();
 
@@ -342,7 +342,7 @@ class _MockProvider extends AiProvider {
   @override
   Future<bool> healthCheck() async {
     if (_slow) {
-      await Future<void>.delayed(Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(seconds: 1));
     }
     if (_throwError && _errorToThrow != null) {
       throw _errorToThrow!;

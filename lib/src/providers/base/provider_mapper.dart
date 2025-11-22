@@ -26,6 +26,7 @@
 ///   }
 /// }
 /// ```
+library;
 import 'dart:typed_data';
 
 import '../../models/requests/chat_request.dart';

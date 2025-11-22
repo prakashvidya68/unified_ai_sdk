@@ -93,7 +93,7 @@ abstract class AiException implements Exception {
 
     final details = parts.length > 1 ? ' (${parts.skip(1).join(', ')})' : '';
 
-    return '${runtimeType}: $message$details';
+    return '$runtimeType: $message$details';
   }
 
   /// Returns a JSON-serializable representation of this exception.

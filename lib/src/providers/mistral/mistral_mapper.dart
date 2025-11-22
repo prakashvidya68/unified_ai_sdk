@@ -3,6 +3,7 @@
 /// This class provides bidirectional conversion between the provider-agnostic
 /// SDK models ([ChatRequest], [ChatResponse], [EmbeddingRequest], [EmbeddingResponse],
 /// [SttRequest], [TranscriptionResponse]) and Mistral AI-specific models.
+library;
 
 import 'dart:convert';
 import 'dart:typed_data';

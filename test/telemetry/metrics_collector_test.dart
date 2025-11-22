@@ -78,7 +78,7 @@ void main() {
           operation: 'chat',
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1500),
           tokensUsed: 250,
@@ -100,7 +100,7 @@ void main() {
           operation: 'chat',
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 10),
           tokensUsed: 100,
@@ -120,7 +120,7 @@ void main() {
           operation: 'chat',
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1500),
         ));
@@ -148,15 +148,15 @@ void main() {
           operation: 'chat',
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1000),
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-2',
           latency: Duration(milliseconds: 2000),
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-3',
           latency: Duration(milliseconds: 3000),
         ));
@@ -169,7 +169,7 @@ void main() {
 
       test('should handle response without request tracking', () async {
         // Response without prior request (should be ignored)
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-unknown',
           latency: Duration(milliseconds: 1000),
         ));
@@ -191,12 +191,12 @@ void main() {
           operation: 'chat',
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1000),
           tokensUsed: 100,
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-2',
           latency: Duration(milliseconds: 2000),
           tokensUsed: 200,
@@ -392,17 +392,17 @@ void main() {
           operation: 'chat',
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1000),
           cached: true,
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-2',
           latency: Duration(milliseconds: 2000),
           cached: true,
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-3',
           latency: Duration(milliseconds: 3000),
           cached: false,
@@ -438,11 +438,11 @@ void main() {
           error: AuthError(message: 'Invalid key'),
         ));
 
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-2',
           latency: Duration(milliseconds: 1000),
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-3',
           latency: Duration(milliseconds: 2000),
         ));
@@ -474,7 +474,7 @@ void main() {
         ));
 
         // Response
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1500),
           tokensUsed: 250,
@@ -496,7 +496,7 @@ void main() {
           provider: 'openai',
           operation: 'chat',
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1000),
           tokensUsed: 100,
@@ -508,7 +508,7 @@ void main() {
           provider: 'anthropic',
           operation: 'chat',
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-2',
           latency: Duration(milliseconds: 2000),
           tokensUsed: 200,
@@ -534,7 +534,7 @@ void main() {
           provider: 'openai',
           operation: 'chat',
         ));
-        await collector.onResponse(ResponseTelemetry(
+        await collector.onResponse(const ResponseTelemetry(
           requestId: 'req-1',
           latency: Duration(milliseconds: 1500),
           tokensUsed: 250,

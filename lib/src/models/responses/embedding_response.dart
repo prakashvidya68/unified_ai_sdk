@@ -91,8 +91,9 @@ class EmbeddingData {
   bool _listEquals(List<double> a, List<double> b) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
-      if ((a[i] - b[i]).abs() > 1e-10)
+      if ((a[i] - b[i]).abs() > 1e-10) {
         return false; // Floating point comparison
+      }
     }
     return true;
   }

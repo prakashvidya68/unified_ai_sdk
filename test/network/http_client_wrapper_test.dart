@@ -393,12 +393,12 @@ class _ErrorHttpClient extends http.BaseClient {
     Object? body,
     Encoding? encoding,
   }) async {
-    throw SocketException('Connection failed');
+    throw const SocketException('Connection failed');
   }
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    throw SocketException('Connection failed');
+    throw const SocketException('Connection failed');
   }
 
   @override

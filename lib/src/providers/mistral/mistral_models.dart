@@ -8,6 +8,7 @@
 /// by SDK users. Use the unified SDK models ([ChatRequest], [ChatResponse], etc.)
 /// instead, which will be automatically converted to/from these Mistral-specific
 /// models by [MistralMapper].
+library;
 
 import '../../error/error_types.dart';
 

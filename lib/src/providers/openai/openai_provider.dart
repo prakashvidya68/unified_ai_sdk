@@ -436,19 +436,12 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
           if (line.startsWith('data: ')) {
             final data = line.substring(6).trim();
 
-            // FIX 1: The API you are streaming from likely does not use the OpenAI "[DONE]" marker.
-            // The end-of-stream event is likely marked by a specific type or the stream closing.
-            // We will rely on the stream closing or a final event type.
-
             // Parse JSON chunk
             try {
               final chunkJson = jsonDecode(data) as Map<String, dynamic>;
 
               // Extract the event type to differentiate chunks
               final eventType = chunkJson['type'] as String?;
-
-              // --- FIX 2: Correctly extract the delta content based on the stream structure ---
-              // The Anthropic/Claude style uses a 'delta' or 'part' field directly.
 
               String? contentDelta;
 
@@ -466,9 +459,7 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
                 final part = chunkJson['part'] as Map<String, dynamic>?;
                 contentDelta = part?['text'] as String?;
               }
-              // --- End of Fix 2 ---
 
-              // --- FIX 3: Capture metadata from final completion event (e.g., 'response.end' or similar) ---
               if (eventType == 'response.end' || eventType == 'completion') {
                 // This is where you would typically capture the full metadata/usage from the final event
                 finalMetadata = chunkJson['meta'] as Map<String, dynamic>?;
@@ -480,7 +471,6 @@ class OpenAIProvider extends AiProvider implements ModelFetcher {
                 );
                 return;
               }
-              // --- End of Fix 3 ---
 
               // Yield event with content delta
               if (contentDelta != null && contentDelta.isNotEmpty) {

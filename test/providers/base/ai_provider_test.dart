@@ -59,12 +59,12 @@ class MockProvider extends AiProvider {
     return ChatResponse(
       id: 'test-id',
       choices: [
-        ChatChoice(
+        const ChatChoice(
           index: 0,
           message: Message(role: Role.assistant, content: 'Test response'),
         ),
       ],
-      usage: Usage(
+      usage: const Usage(
         promptTokens: 10,
         completionTokens: 5,
         totalTokens: 15,
@@ -350,7 +350,7 @@ void main() {
 
         expect(
           () => provider.chat(ChatRequest(
-            messages: [Message(role: Role.user, content: 'Test')],
+            messages: [const Message(role: Role.user, content: 'Test')],
           )),
           throwsA(isA<CapabilityError>()),
         );
@@ -369,7 +369,7 @@ void main() {
         ));
 
         final response = await provider.chat(ChatRequest(
-          messages: [Message(role: Role.user, content: 'Test')],
+          messages: [const Message(role: Role.user, content: 'Test')],
         ));
         expect(response, isA<ChatResponse>());
       });
@@ -385,7 +385,7 @@ void main() {
 
         expect(
           () => provider.chatStream(ChatRequest(
-            messages: [Message(role: Role.user, content: 'Test')],
+            messages: [const Message(role: Role.user, content: 'Test')],
           )),
           throwsA(isA<UnsupportedError>()),
         );
@@ -402,7 +402,7 @@ void main() {
         );
 
         final stream = provider.chatStream(ChatRequest(
-          messages: [Message(role: Role.user, content: 'Test')],
+          messages: [const Message(role: Role.user, content: 'Test')],
         ));
         expect(stream, isNotNull);
       });
@@ -417,7 +417,7 @@ void main() {
 
         expect(
           () => provider.chatStream(ChatRequest(
-            messages: [Message(role: Role.user, content: 'Test')],
+            messages: [const Message(role: Role.user, content: 'Test')],
           )),
           throwsA(isA<UnsupportedError>()),
         );

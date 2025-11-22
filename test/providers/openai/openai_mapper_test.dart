@@ -17,7 +17,7 @@ void main() {
       test('should convert basic ChatRequest to OpenAIChatRequest', () {
         final sdkRequest = ChatRequest(
           messages: [
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
           model: 'gpt-4',
           temperature: 0.7,
@@ -37,10 +37,10 @@ void main() {
       test('should convert messages with all roles', () {
         final sdkRequest = ChatRequest(
           messages: [
-            Message(role: Role.system, content: 'You are helpful'),
-            Message(role: Role.user, content: 'Hello!'),
-            Message(role: Role.assistant, content: 'Hi there!'),
-            Message(
+            const Message(role: Role.system, content: 'You are helpful'),
+            const Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.assistant, content: 'Hi there!'),
+            const Message(
                 role: Role.function,
                 content: 'Function result',
                 name: 'get_weather'),
@@ -60,7 +60,7 @@ void main() {
 
       test('should extract OpenAI-specific fields from providerOptions', () {
         final sdkRequest = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hello')],
+          messages: [const Message(role: Role.user, content: 'Hello')],
           model: 'gpt-4',
           providerOptions: {
             'openai': {
@@ -82,7 +82,7 @@ void main() {
 
       test('should use defaultModel when request.model is null', () {
         final sdkRequest = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hello')],
+          messages: [const Message(role: Role.user, content: 'Hello')],
         );
 
         final openaiRequest = _mapper.mapChatRequest(
@@ -95,7 +95,7 @@ void main() {
 
       test('should throw error when model is missing', () {
         final sdkRequest = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hello')],
+          messages: [const Message(role: Role.user, content: 'Hello')],
         );
 
         expect(
@@ -107,7 +107,7 @@ void main() {
       test('should include message metadata', () {
         final sdkRequest = ChatRequest(
           messages: [
-            Message(
+            const Message(
               role: Role.user,
               content: 'Hello',
               meta: {'custom_field': 'value'},
@@ -123,7 +123,7 @@ void main() {
 
       test('should handle all common fields', () {
         final sdkRequest = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hello')],
+          messages: [const Message(role: Role.user, content: 'Hello')],
           model: 'gpt-4',
           temperature: 0.7,
           maxTokens: 500,
@@ -505,7 +505,7 @@ void main() {
             _mapper
                 .mapChatRequest(
                   ChatRequest(
-                    messages: [Message(role: Role.system, content: '')],
+                    messages: [const Message(role: Role.system, content: '')],
                     model: 'gpt-4',
                   ),
                 )
@@ -517,7 +517,7 @@ void main() {
             _mapper
                 .mapChatRequest(
                   ChatRequest(
-                    messages: [Message(role: Role.user, content: '')],
+                    messages: [const Message(role: Role.user, content: '')],
                     model: 'gpt-4',
                   ),
                 )
@@ -529,7 +529,9 @@ void main() {
             _mapper
                 .mapChatRequest(
                   ChatRequest(
-                    messages: [Message(role: Role.assistant, content: '')],
+                    messages: [
+                      const Message(role: Role.assistant, content: '')
+                    ],
                     model: 'gpt-4',
                   ),
                 )
@@ -541,7 +543,7 @@ void main() {
             _mapper
                 .mapChatRequest(
                   ChatRequest(
-                    messages: [Message(role: Role.function, content: '')],
+                    messages: [const Message(role: Role.function, content: '')],
                     model: 'gpt-4',
                   ),
                 )

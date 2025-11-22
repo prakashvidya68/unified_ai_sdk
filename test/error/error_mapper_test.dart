@@ -246,7 +246,7 @@ void main() {
       });
 
       test('should map SocketException to TransientError', () {
-        final exception = SocketException('Connection refused');
+        final exception = const SocketException('Connection refused');
 
         final error = ErrorMapper.mapException(exception, 'openai');
 
@@ -281,7 +281,7 @@ void main() {
       });
 
       test('should map HttpException to TransientError', () {
-        final exception = HttpException('HTTP error occurred');
+        final exception = const HttpException('HTTP error occurred');
 
         final error = ErrorMapper.mapException(exception, 'openai');
 
@@ -292,7 +292,7 @@ void main() {
       });
 
       test('should map FormatException to ClientError', () {
-        final exception = FormatException('Invalid JSON');
+        final exception = const FormatException('Invalid JSON');
 
         final error = ErrorMapper.mapException(exception, 'openai');
 
@@ -322,7 +322,7 @@ void main() {
       });
 
       test('should preserve provider in mapped exception', () {
-        final exception = SocketException('Connection failed');
+        final exception = const SocketException('Connection failed');
 
         final error = ErrorMapper.mapException(exception, 'anthropic');
 

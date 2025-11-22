@@ -650,7 +650,7 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
 
     // If we have remaining data, wrap it back in array brackets if needed
     if (remaining.isNotEmpty && !remaining.startsWith('[')) {
-      remaining = '[' + remaining;
+      remaining = '[$remaining';
     }
     if (remaining.isNotEmpty && !remaining.endsWith(']')) {
       // Don't add closing bracket yet - it might be incomplete
@@ -947,7 +947,7 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
                   'For reference, see: https://ai.google.dev/gemini-api/docs/image-generation\n\n'
                   'If issues persist, consider using Imagen models (e.g., imagen-4.0-generate-001) '
                   'which use the :predict endpoint.\n\n'
-                  'Error details: ${errorBody.length > 200 ? errorBody.substring(0, 200) + "..." : errorBody}',
+                  'Error details: ${errorBody.length > 200 ? "${errorBody.substring(0, 200)}..." : errorBody}',
               code: 'INVALID_IMAGE_GENERATION_REQUEST',
               provider: id,
             );

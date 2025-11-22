@@ -9,7 +9,7 @@ void main() {
       test('should create request with required messages', () {
         final request = ChatRequest(
           messages: [
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
         );
 
@@ -23,8 +23,8 @@ void main() {
       test('should create request with all fields', () {
         final request = ChatRequest(
           messages: [
-            Message(role: Role.system, content: 'You are helpful'),
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.system, content: 'You are helpful'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
           model: 'gpt-4',
           maxTokens: 500,
@@ -59,7 +59,7 @@ void main() {
       test('should throw assertion error if maxTokens is negative', () {
         expect(
           () => ChatRequest(
-            messages: [Message(role: Role.user, content: 'Hi')],
+            messages: [const Message(role: Role.user, content: 'Hi')],
             maxTokens: -1,
           ),
           throwsA(isA<AssertionError>()),
@@ -69,7 +69,7 @@ void main() {
       test('should throw assertion error if maxTokens is zero', () {
         expect(
           () => ChatRequest(
-            messages: [Message(role: Role.user, content: 'Hi')],
+            messages: [const Message(role: Role.user, content: 'Hi')],
             maxTokens: 0,
           ),
           throwsA(isA<AssertionError>()),
@@ -79,7 +79,7 @@ void main() {
       test('should throw assertion error if n is negative', () {
         expect(
           () => ChatRequest(
-            messages: [Message(role: Role.user, content: 'Hi')],
+            messages: [const Message(role: Role.user, content: 'Hi')],
             n: -1,
           ),
           throwsA(isA<AssertionError>()),
@@ -89,7 +89,7 @@ void main() {
       test('should throw assertion error if n is zero', () {
         expect(
           () => ChatRequest(
-            messages: [Message(role: Role.user, content: 'Hi')],
+            messages: [const Message(role: Role.user, content: 'Hi')],
             n: 0,
           ),
           throwsA(isA<AssertionError>()),
@@ -99,7 +99,7 @@ void main() {
       test('should throw assertion error if temperature is negative', () {
         expect(
           () => ChatRequest(
-            messages: [Message(role: Role.user, content: 'Hi')],
+            messages: [const Message(role: Role.user, content: 'Hi')],
             temperature: -0.1,
           ),
           throwsA(isA<AssertionError>()),
@@ -109,7 +109,7 @@ void main() {
       test('should throw assertion error if temperature exceeds 2.0', () {
         expect(
           () => ChatRequest(
-            messages: [Message(role: Role.user, content: 'Hi')],
+            messages: [const Message(role: Role.user, content: 'Hi')],
             temperature: 2.1,
           ),
           throwsA(isA<AssertionError>()),
@@ -118,11 +118,11 @@ void main() {
 
       test('should accept temperature at boundaries', () {
         final request1 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 0.0,
         );
         final request2 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 2.0,
         );
 
@@ -226,7 +226,7 @@ void main() {
       test('should serialize to JSON with camelCase keys', () {
         final request = ChatRequest(
           messages: [
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
           model: 'gpt-4',
           maxTokens: 500,
@@ -251,7 +251,7 @@ void main() {
 
       test('should not include null fields', () {
         final request = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
         );
 
         final json = request.toJson();
@@ -264,8 +264,8 @@ void main() {
       test('should serialize messages correctly', () {
         final request = ChatRequest(
           messages: [
-            Message(role: Role.system, content: 'You are helpful'),
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.system, content: 'You are helpful'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
         );
 
@@ -279,7 +279,7 @@ void main() {
       test('should round-trip through JSON', () {
         final original = ChatRequest(
           messages: [
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
           model: 'gpt-4',
           maxTokens: 500,
@@ -299,7 +299,7 @@ void main() {
     group('copyWith', () {
       test('should create copy with updated fields', () {
         final original = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 0.7,
         );
 
@@ -311,7 +311,7 @@ void main() {
 
       test('should preserve unchanged fields', () {
         final original = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: 'gpt-4',
           maxTokens: 500,
         );
@@ -325,7 +325,7 @@ void main() {
 
       test('should allow setting model to null', () {
         final original = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: 'gpt-4',
         );
 
@@ -336,7 +336,7 @@ void main() {
 
       test('should allow setting user to null', () {
         final original = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           user: 'user-123',
         );
 
@@ -349,7 +349,7 @@ void main() {
     group('isCacheable', () {
       test('should be cacheable with temperature 0 and n 1', () {
         final request = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 0.0,
           n: 1,
         );
@@ -359,7 +359,7 @@ void main() {
 
       test('should be cacheable with temperature 0 and n null', () {
         final request = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 0.0,
         );
 
@@ -368,7 +368,7 @@ void main() {
 
       test('should not be cacheable with temperature > 0', () {
         final request = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 0.7,
           n: 1,
         );
@@ -378,7 +378,7 @@ void main() {
 
       test('should not be cacheable with n > 1', () {
         final request = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           temperature: 0.0,
           n: 2,
         );
@@ -390,12 +390,12 @@ void main() {
     group('Equality', () {
       test('should be equal with same values', () {
         final request1 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: 'gpt-4',
           maxTokens: 500,
         );
         final request2 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: 'gpt-4',
           maxTokens: 500,
         );
@@ -406,10 +406,10 @@ void main() {
 
       test('should not be equal with different messages', () {
         final request1 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
         );
         final request2 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hello')],
+          messages: [const Message(role: Role.user, content: 'Hello')],
         );
 
         expect(request1, isNot(equals(request2)));
@@ -417,11 +417,11 @@ void main() {
 
       test('should not be equal with different models', () {
         final request1 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: 'gpt-4',
         );
         final request2 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: 'gpt-3.5',
         );
 
@@ -430,10 +430,10 @@ void main() {
 
       test('should handle null fields correctly', () {
         final request1 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
         );
         final request2 = ChatRequest(
-          messages: [Message(role: Role.user, content: 'Hi')],
+          messages: [const Message(role: Role.user, content: 'Hi')],
           model: null,
         );
 
@@ -445,7 +445,7 @@ void main() {
       test('should include key fields in string representation', () {
         final request = ChatRequest(
           messages: [
-            Message(role: Role.user, content: 'Hello!'),
+            const Message(role: Role.user, content: 'Hello!'),
           ],
           model: 'gpt-4',
           maxTokens: 500,

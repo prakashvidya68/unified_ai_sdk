@@ -87,7 +87,7 @@ void main() {
       });
 
       test('can be used in switch statements', () {
-        ImageSize size = ImageSize.w512h512;
+        final ImageSize size = ImageSize.w512h512;
         String description;
 
         switch (size) {

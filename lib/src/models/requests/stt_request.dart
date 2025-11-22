@@ -148,8 +148,8 @@ class SttRequest {
   @override
   String toString() {
     final promptStr = prompt != null
-        ? (prompt!.length > 30 ? "${prompt!.substring(0, 30)}..." : prompt!)
-        : "";
+        ? (prompt!.length > 30 ? '${prompt!.substring(0, 30)}...' : prompt!)
+        : '';
     return 'SttRequest(audio: ${audio.length} bytes${model != null ? ", model: $model" : ""}${language != null ? ", language: $language" : ""}${prompt != null ? ", prompt: $promptStr" : ""}${providerOptions != null ? ", providerOptions: ..." : ""})';
   }
 

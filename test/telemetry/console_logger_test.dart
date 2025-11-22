@@ -69,9 +69,9 @@ void main() {
     group('onResponse()', () {
       test('should log response at debug level', () async {
         final logger = ConsoleLogger(level: LogLevel.debug);
-        final event = ResponseTelemetry(
+        final event = const ResponseTelemetry(
           requestId: 'req-123',
-          latency: const Duration(milliseconds: 500),
+          latency: Duration(milliseconds: 500),
           tokensUsed: 100,
           cached: false,
         );
@@ -81,9 +81,9 @@ void main() {
 
       test('should log response at info level', () async {
         final logger = ConsoleLogger(level: LogLevel.info);
-        final event = ResponseTelemetry(
+        final event = const ResponseTelemetry(
           requestId: 'req-123',
-          latency: const Duration(milliseconds: 500),
+          latency: Duration(milliseconds: 500),
           tokensUsed: 100,
           cached: false,
         );
@@ -93,9 +93,9 @@ void main() {
 
       test('should handle response with null tokensUsed', () async {
         final logger = ConsoleLogger(level: LogLevel.debug);
-        final event = ResponseTelemetry(
+        final event = const ResponseTelemetry(
           requestId: 'req-123',
-          latency: const Duration(milliseconds: 500),
+          latency: Duration(milliseconds: 500),
           tokensUsed: null,
           cached: false,
         );
@@ -105,9 +105,9 @@ void main() {
 
       test('should handle cached response', () async {
         final logger = ConsoleLogger(level: LogLevel.debug);
-        final event = ResponseTelemetry(
+        final event = const ResponseTelemetry(
           requestId: 'req-123',
-          latency: const Duration(milliseconds: 10),
+          latency: Duration(milliseconds: 10),
           tokensUsed: null,
           cached: true,
         );
@@ -195,9 +195,9 @@ void main() {
       test('should filter responses based on log level', () async {
         // Warning level should not log responses
         final warningLogger = ConsoleLogger(level: LogLevel.warning);
-        final responseEvent = ResponseTelemetry(
+        final responseEvent = const ResponseTelemetry(
           requestId: 'req-123',
-          latency: const Duration(milliseconds: 500),
+          latency: Duration(milliseconds: 500),
           tokensUsed: 100,
           cached: false,
         );

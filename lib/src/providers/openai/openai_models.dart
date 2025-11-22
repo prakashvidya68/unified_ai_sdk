@@ -8,6 +8,7 @@
 /// by SDK users. Use the unified SDK models ([ChatRequest], [ChatResponse], etc.)
 /// instead, which will be automatically converted to/from these OpenAI-specific
 /// models by [OpenAIMapper].
+library;
 
 import 'dart:typed_data';
 
@@ -253,8 +254,9 @@ class OpenAIChatRequest {
       if (maxTokens != null) json['max_tokens'] = maxTokens;
       if (topP != null) json['top_p'] = topP;
       if (presencePenalty != null) json['presence_penalty'] = presencePenalty;
-      if (frequencyPenalty != null)
+      if (frequencyPenalty != null) {
         json['frequency_penalty'] = frequencyPenalty;
+      }
     }
 
     // Common parameters for all models
@@ -727,8 +729,9 @@ class OpenAIResponseRequest {
       }
       if (topP != null) json['top_p'] = topP;
       if (presencePenalty != null) json['presence_penalty'] = presencePenalty;
-      if (frequencyPenalty != null)
+      if (frequencyPenalty != null) {
         json['frequency_penalty'] = frequencyPenalty;
+      }
     }
 
     // Common parameters for all models

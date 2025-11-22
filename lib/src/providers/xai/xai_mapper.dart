@@ -3,6 +3,7 @@
 /// This class provides bidirectional conversion between the provider-agnostic
 /// SDK models ([ChatRequest], [ChatResponse], [ImageRequest], [ImageResponse])
 /// and xAI-specific models ([XAIChatRequest], [XAIChatResponse], etc.).
+library;
 
 import 'dart:typed_data';
 

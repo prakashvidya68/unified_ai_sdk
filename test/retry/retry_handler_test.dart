@@ -21,7 +21,7 @@ void main() {
     test('should retry on TransientError and succeed', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 10),
       );
       final handler = RetryHandler(policy: policy);
 
@@ -44,7 +44,7 @@ void main() {
     test('should retry on QuotaError and succeed', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 10),
       );
       final handler = RetryHandler(policy: policy);
 
@@ -81,7 +81,7 @@ void main() {
       );
 
       // Wait a bit to ensure no retries occurred
-      await Future<void>.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(attemptCount, equals(1)); // Only one attempt
     });
 
@@ -101,7 +101,7 @@ void main() {
         throwsA(isA<ClientError>()),
       );
 
-      await Future<void>.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(attemptCount, equals(1));
     });
 
@@ -121,14 +121,14 @@ void main() {
         throwsA(isA<CapabilityError>()),
       );
 
-      await Future<void>.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(attemptCount, equals(1));
     });
 
     test('should throw last exception after max attempts', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 10),
       );
       final handler = RetryHandler(policy: policy);
 
@@ -144,14 +144,14 @@ void main() {
         throwsA(isA<TransientError>()),
       );
 
-      await Future<void>.delayed(Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(attemptCount, equals(3)); // All attempts exhausted
     });
 
     test('should use exponential backoff delays', () async {
       final policy = RetryPolicy(
         maxAttempts: 4,
-        initialDelay: Duration(milliseconds: 50),
+        initialDelay: const Duration(milliseconds: 50),
         multiplier: 2.0,
       );
       final handler = RetryHandler(policy: policy);
@@ -192,11 +192,11 @@ void main() {
     test('should respect QuotaError retryAfter when provided', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 10),
       );
       final handler = RetryHandler(policy: policy);
 
-      final retryAfterTime = DateTime.now().add(Duration(milliseconds: 100));
+      final retryAfterTime = DateTime.now().add(const Duration(milliseconds: 100));
       int attemptCount = 0;
       final stopwatch = Stopwatch()..start();
 
@@ -222,11 +222,11 @@ void main() {
     test('should use calculated delay if retryAfter is in the past', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 50),
+        initialDelay: const Duration(milliseconds: 50),
       );
       final handler = RetryHandler(policy: policy);
 
-      final pastTime = DateTime.now().subtract(Duration(seconds: 1));
+      final pastTime = DateTime.now().subtract(const Duration(seconds: 1));
       int attemptCount = 0;
       final stopwatch = Stopwatch()..start();
 
@@ -253,11 +253,11 @@ void main() {
         () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 10),
       );
       final handler = RetryHandler(policy: policy);
 
-      final retryAfterTime = DateTime.now().add(Duration(milliseconds: 200));
+      final retryAfterTime = DateTime.now().add(const Duration(milliseconds: 200));
       int attemptCount = 0;
       final stopwatch = Stopwatch()..start();
 
@@ -283,7 +283,7 @@ void main() {
     test('should handle custom retry logic from policy', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 10),
+        initialDelay: const Duration(milliseconds: 10),
         shouldRetry: (e) {
           // Custom: retry ClientError with specific code
           if (e is ClientError && e.code == 'TEMPORARY') {
@@ -323,7 +323,7 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      await Future<void>.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(attemptCount,
           equals(1)); // Should not retry non-Exception errors by default
     });
@@ -362,15 +362,15 @@ void main() {
         throwsA(isA<TransientError>()),
       );
 
-      await Future<void>.delayed(Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(attemptCount, equals(1)); // Only one attempt, no retries
     });
 
     test('should cap delay at maxDelay', () async {
       final policy = RetryPolicy(
         maxAttempts: 3,
-        initialDelay: Duration(milliseconds: 100),
-        maxDelay: Duration(milliseconds: 150),
+        initialDelay: const Duration(milliseconds: 100),
+        maxDelay: const Duration(milliseconds: 150),
         multiplier: 10.0, // Would normally create very long delays
       );
       final handler = RetryHandler(policy: policy);

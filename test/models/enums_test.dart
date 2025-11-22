@@ -67,7 +67,7 @@ void main() {
     });
 
     test('TaskType can be used in switch statements', () {
-      TaskType task = TaskType.chat;
+      final TaskType task = TaskType.chat;
       String description;
 
       switch (task) {

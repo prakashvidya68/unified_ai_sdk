@@ -155,7 +155,7 @@ void main() {
       });
 
       test('should create response with all fields', () {
-        final usage = Usage(
+        final usage = const Usage(
           promptTokens: 10,
           completionTokens: 0,
           totalTokens: 10,
@@ -242,7 +242,7 @@ void main() {
 
     group('toJson()', () {
       test('should serialize response to JSON', () {
-        final usage = Usage(
+        final usage = const Usage(
           promptTokens: 10,
           completionTokens: 0,
           totalTokens: 10,
@@ -483,7 +483,7 @@ void main() {
 
     group('Round-trip serialization', () {
       test('should serialize and deserialize correctly', () {
-        final usage = Usage(
+        final usage = const Usage(
           promptTokens: 10,
           completionTokens: 0,
           totalTokens: 10,

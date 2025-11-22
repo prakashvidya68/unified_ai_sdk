@@ -396,7 +396,7 @@ void main() {
               id: 'openai',
               auth: ApiKeyAuth(apiKey: 'sk-openai-abc123'),
               settings: {'defaultModel': 'gpt-4'},
-              timeout: Duration(seconds: 30),
+              timeout: const Duration(seconds: 30),
             ),
             'anthropic': ProviderConfig(
               id: 'anthropic',

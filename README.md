@@ -8,8 +8,6 @@ A unified, provider-agnostic Dart SDK for interacting with multiple AI providers
 ## Features
 
 - **Unified Interface**: Single API for multiple AI providers (OpenAI, Anthropic, Google, Cohere, xAI, Mistral)
-- **Provider Agnostic**: Switch between providers without changing your code
-- **Automatic Routing**: Intelligent provider selection based on request intent and capabilities
 - **Streaming Support**: Real-time streaming responses for chat completions
 - **Automatic Retries**: Built-in retry logic with exponential backoff
 - **Type Safe**: Strong Dart typing throughout
@@ -17,31 +15,37 @@ A unified, provider-agnostic Dart SDK for interacting with multiple AI providers
 - **Telemetry**: Built-in observability and metrics collection
 - **Health Checking**: Monitor provider availability and performance
 - **Rate Limiting**: Automatic rate limit management
-- **Caching**: Configurable response caching to reduce API costs
 - **Error Handling**: Structured error types for better error handling
 - **Extensible**: Easy to add new providers
+- **Provider Agnostic**: Switch between providers without changing your code too much.
+- **Automatic Routing**: (COMING SOON...)Intelligent provider selection based on request intent and capabilities
 
 ## Supported Providers
 
 The SDK supports 6 major AI providers, each with different capabilities:
 
-| Provider      | Chat | Embeddings | Image Gen | Streaming | Dynamic Models |
-| ------------- | ---- | ---------- | --------- | --------- | -------------- |
-| **OpenAI**    | ✅   | ✅         | ✅        | ✅        | ✅             |
-| **Anthropic** | ✅   | ❌         | ❌        | ✅        | ❌             |
-| **Google**    | ✅   | ✅         | ❌        | ✅        | ✅             |
-| **Cohere**    | ✅   | ✅         | ❌        | ✅        | ✅             |
-| **xAI**       | ✅   | ❌         | ❌        | ✅        | ❌             |
-| **Mistral**   | ✅   | ✅         | ❌        | ✅        | ✅             |
+| Provider      | Chat | Embeddings | Image Gen | Streaming Chat | Dynamic Models | STT | TTS | Video Gen |
+| ------------- | ---- | ---------- | --------- | -------------- | -------------- | --- | --- | --------- |
+| **OpenAI**    | ✅   | ✅         | ✅        | ✅             | ✅             | ✅  | ✅  | ✅        |
+| **Anthropic** | ✅   | ❌         | ❌        | ✅             | ❌             | ❌  | ❌  | ❌        |
+| **Google**    | ✅   | ✅         | ✅        | ✅             | ✅             | ❌  | ❌  | ❌        |
+| **xAI**       | ✅   | ❌         | ✅        | ✅             | ❌             | ❌  | ❌  | ❌        |
+| **Cohere**    | ✅   | ✅         | ❌        | ✅             | ✅             | ❌  | ❌  | ❌        |
+| **Mistral**   | ✅   | ✅         | ❌        | ✅             | ✅             | ❌  | ❌  | ❌        |
 
 ### Provider Capabilities
 
 - **OpenAI**: GPT-5.1, GPT-5, GPT-4o series, embeddings, DALL-E image generation, Sora video generation, TTS/STT
 - **Anthropic**: Claude 3 Opus, Sonnet, Haiku models
-- **Google**: Gemini models, embeddings
+- **Google**: Gemini models, embeddings, image generation
+
+  _support for GOOGLE's AI is provided using GOOGLE AI Studio(GEMINI APIs) VERTEX support is coming soon..._
+
 - **Cohere**: Command models, embeddings
-- **xAI**: Grok models
+- **xAI**: Grok models, image generation
 - **Mistral**: Mistral models, embeddings
+
+**NOTE:** _Working on adding all the capabilities supported by respective providers_
 
 ## Installation
 
@@ -49,7 +53,7 @@ Add `unified_ai_sdk` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  unified_ai_sdk: ^0.0.1
+  unified_ai_sdk: ^0.0.2
 ```
 
 Then run:
@@ -560,6 +564,9 @@ dart run example/01_simple_chat/main.dart
 
 For more details, see [example/README.md](example/README.md).
 
+OR checkout the playground app here:
+https://github.com/prakashvidya68/unified_ai_sdk_test_app
+
 ## Requirements
 
 - Dart SDK >= 3.0.0
@@ -583,8 +590,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/unified_ai_sdk/issues)
-- **Documentation**: [Full Documentation](https://your-docs-url.com)
+- **Issues**: [GitHub Issues](https://github.com/prakashvidya68/unified_ai_sdk/issues)
+- **Documentation**: [Full Documentation](https://github.com/prakashvidya68/unified_ai_sdk/blob/main/README.md)
 
 ## Changelog
 

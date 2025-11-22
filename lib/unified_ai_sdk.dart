@@ -55,7 +55,7 @@
 /// **Documentation:**
 /// For detailed API documentation, see the generated docs or visit the
 /// project repository.
-library unified_ai_sdk;
+library;
 
 // Core SDK
 export 'src/core/unified_ai.dart';

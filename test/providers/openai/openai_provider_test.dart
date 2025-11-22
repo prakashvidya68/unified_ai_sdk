@@ -980,7 +980,7 @@ void main() {
 
         final request = ChatRequest(
           model: 'gpt-4',
-          messages: [Message(role: Role.user, content: 'Hello!')],
+          messages: [const Message(role: Role.user, content: 'Hello!')],
         );
 
         final stream = provider.chatStream(request);
@@ -1020,7 +1020,7 @@ void main() {
 
         final request = ChatRequest(
           model: 'gpt-4',
-          messages: [Message(role: Role.user, content: 'Test')],
+          messages: [const Message(role: Role.user, content: 'Test')],
         );
 
         final stream = provider.chatStream(request);
@@ -1051,7 +1051,7 @@ void main() {
 
         final request = ChatRequest(
           model: 'gpt-4',
-          messages: [Message(role: Role.user, content: 'Test')],
+          messages: [const Message(role: Role.user, content: 'Test')],
         );
 
         final stream = provider.chatStream(request);
