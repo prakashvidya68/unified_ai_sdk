@@ -6,3 +6,7 @@
 
 - Fix dart analyser issues.
 - Fix some documentation
+
+## 0.0.3
+
+- Fix video generation with google provider (gemini).

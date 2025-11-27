@@ -37,7 +37,7 @@ The SDK supports 6 major AI providers, each with different capabilities:
 
 - **OpenAI**: GPT-5.1, GPT-5, GPT-4o series, embeddings, DALL-E image generation, Sora video generation, TTS/STT
 - **Anthropic**: Claude 3 Opus, Sonnet, Haiku models
-- **Google**: Gemini models, embeddings, image generation
+- **Google**: Gemini models, embeddings, image generation, video generation
 
   _support for GOOGLE's AI is provided using GOOGLE AI Studio(GEMINI APIs) VERTEX support is coming soon..._
 
@@ -53,7 +53,7 @@ Add `unified_ai_sdk` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  unified_ai_sdk: ^0.0.2
+  unified_ai_sdk: ^0.0.3
 ```
 
 Then run:
