@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
@@ -159,9 +160,11 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
     'imagegeneration@006',
     'imagegeneration@005',
     // Video generation models (Veo)
-    'veo-3.1',
-    'veo-3',
-    'video-generate@001',
+    'veo-3.1-generate-preview', // Veo 3.1 Preview
+    'veo-3.1-fast-generate-preview', // Veo 3.1 Fast Preview
+    'veo-3.0-generate-001', // Veo 3
+    'veo-3.0-fast-generate-001', // Veo 3 Fast
+    'veo-2.0-generate-001', // Veo 2
   ];
 
   /// Cached capabilities instance.
@@ -1131,6 +1134,9 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
   // ============================================================================
   // VIDEO GENERATION / TEXT TO VIDEO
   // ============================================================================
+// ============================================================================
+  // VIDEO GENERATION / TEXT TO VIDEO
+  // ============================================================================
 
   @override
   Future<VideoResponse> generateVideo(VideoRequest request) async {
@@ -1145,10 +1151,12 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
       ) as GoogleVideoRequest;
 
       // Determine model from request
-      // Default to Veo 3.1 (latest video generation model)
+      // Default to Veo 3.1 Preview (latest video generation model)
       final model = googleRequest.model ??
           _defaultModel ??
-          (_apiVersion == 'v1beta' ? 'veo-3.1' : 'veo-3');
+          (_apiVersion == 'v1beta'
+              ? 'veo-3.1-generate-preview'
+              : 'veo-3.0-generate-001');
 
       if (model.isEmpty) {
         throw ClientError(
@@ -1160,15 +1168,14 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
       }
 
       // Build URL with model
-      // Both v1 and v1beta use the same generateVideo endpoint structure
-      // API key is sent via header (x-goog-api-key) - do not include in query string
-      final url = '$_baseUrl/models/$model:generateVideo';
+      // Google Veo API uses predictLongRunning endpoint for async operations
+      final url = '$_baseUrl/models/$model:predictLongRunning';
 
-      // Build request body (remove model from body, it goes in URL)
+      // Build request body
       final requestBody = googleRequest.toJson();
-      requestBody.remove('model');
+      requestBody.remove('model'); // Model is in the URL
 
-      // Make HTTP POST request
+      // Step 1: Submit the video generation request
       final response = await _http.post(
         url,
         body: jsonEncode(requestBody),
@@ -1179,22 +1186,187 @@ class GoogleProvider extends AiProvider implements ModelFetcher {
         throw ErrorMapper.mapHttpError(response, id);
       }
 
-      // Parse response JSON
-      final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
-      final googleResponse = GoogleVideoResponse.fromJson(responseJson);
+      // Step 2: Parse the operation response (as Map since GoogleVideoOperation is internal/missing)
+      final operationJson = jsonDecode(response.body) as Map<String, dynamic>;
+      final operationName = operationJson['name'] as String?;
 
-      // Map Google response to SDK format
-      return _mapper.mapVideoResponse(googleResponse);
+      if (operationName == null) {
+        throw ClientError(
+          message: 'Video generation response missing operation name',
+          code: 'INVALID_RESPONSE',
+          provider: id,
+        );
+      }
+
+      // Step 3: Poll the operation until completion
+      final completedOperation = await _pollVideoOperation(operationName);
+
+      // Step 4: Extract video URI
+      final videoUri = _extractVideoUri(completedOperation);
+      if (videoUri == null) {
+        throw ClientError(
+          message:
+              'Video generation completed but no video URI found in response',
+          code: 'MISSING_VIDEO_URI',
+          provider: id,
+        );
+      }
+
+      // Step 5: Download the video from the URI
+      final videoBytes = await _downloadVideo(videoUri);
+      final base64Video = base64Encode(videoBytes);
+
+      // Step 6: Construct VideoResponse manually
+      // (Avoiding missing mapper method mapVideoResponseFromOperation)
+      final asset = VideoAsset(
+        url: null, // We provide the base64 content directly
+        base64: base64Video,
+        // Attempt to extract duration/metadata if available in the operation response
+        // but Veo responses vary, so we stick to the basics.
+      );
+
+      return VideoResponse(
+        assets: [asset],
+        model: model,
+        provider: id,
+        timestamp: DateTime.now(),
+        metadata: {
+          'operation_name': operationName,
+        },
+      );
     } on AiException {
       rethrow;
     } catch (e) {
-      // Catch any unexpected errors and wrap them
       throw ClientError(
         message: 'Failed to generate video: ${e.toString()}',
         code: 'VIDEO_GENERATION_ERROR',
         provider: id,
       );
     }
+  }
+
+  /// Polls a video generation operation until it completes or fails.
+  Future<Map<String, dynamic>> _pollVideoOperation(String operationName) async {
+    const maxAttempts = 120; // ~2 minutes (Veo can take time)
+    const initialDelay = Duration(seconds: 2);
+    const maxDelay = Duration(seconds: 10);
+
+    Duration delay = initialDelay;
+    int attempts = 0;
+
+    while (attempts < maxAttempts) {
+      // Wait before polling (except first attempt)
+      if (attempts > 0) {
+        await Future<void>.delayed(delay);
+        // Exponential backoff
+        delay = Duration(
+          milliseconds: (delay.inMilliseconds * 1.5).round().clamp(
+                initialDelay.inMilliseconds,
+                maxDelay.inMilliseconds,
+              ),
+        );
+      }
+
+      // Construct the full URL for polling
+      // The name returned is usually like "projects/.../operations/..." or "operations/..."
+      // If it starts with projects/, we treat it as relative to the API root (without /v1beta/ prefix in some clients,
+      // but for REST it is usually relative to version).
+      // Safest approach: Use the name as is relative to baseUrl if it doesn't start with http.
+      final operationUrl = '$_baseUrl/$operationName';
+
+      final response = await _http.get(operationUrl);
+
+      if (response.statusCode != 200) {
+        throw ErrorMapper.mapHttpError(response, id);
+      }
+
+      final operation = jsonDecode(response.body) as Map<String, dynamic>;
+
+      // Check done status
+      if (operation['done'] == true) {
+        // Check for errors
+        if (operation.containsKey('error')) {
+          final error = operation['error'] as Map<String, dynamic>;
+          final errorMessage = error['message'] as String? ??
+              'Video generation operation failed';
+          throw ClientError(
+            message: 'Video generation failed: $errorMessage',
+            code: 'VIDEO_GENERATION_FAILED',
+            provider: id,
+          );
+        }
+        return operation;
+      }
+
+      attempts++;
+    }
+
+    throw ClientError(
+      message: 'Video generation timed out after $maxAttempts polling attempts',
+      code: 'VIDEO_GENERATION_TIMEOUT',
+      provider: id,
+    );
+  }
+
+  /// Extracts the video URI from a completed operation.
+  ///
+  /// The response structure is:
+  /// operation.response.generateVideoResponse.generatedSamples[0].video.uri
+  String? _extractVideoUri(Map<String, dynamic> operation) {
+    final response = operation['response'] as Map<String, dynamic>?;
+    if (response == null) return null;
+
+    // The response structure for Veo API is:
+    // response -> generateVideoResponse -> generatedSamples[] -> video -> uri
+    final generateVideoResponse =
+        response['generateVideoResponse'] as Map<String, dynamic>?;
+    if (generateVideoResponse == null) return null;
+
+    final generatedSamples =
+        generateVideoResponse['generatedSamples'] as List<dynamic>?;
+    if (generatedSamples == null || generatedSamples.isEmpty) {
+      return null;
+    }
+
+    final firstSample = generatedSamples[0] as Map<String, dynamic>;
+    final video = firstSample['video'] as Map<String, dynamic>?;
+    return video?['uri'] as String?;
+  }
+
+  /// Downloads a video from the given URI.
+  ///
+  /// The video URI from Google's Veo API requires authentication via the
+  /// x-goog-api-key header. This method uses the HTTP client wrapper which
+  /// automatically includes the required authentication headers.
+  Future<Uint8List> _downloadVideo(String videoUri) async {
+    // If the URI is a Google Cloud Storage URI (gs://), we can't download it directly via HTTP client
+    // without a GCS client. However, the API typically returns an HTTPS URL.
+    if (videoUri.startsWith('gs://')) {
+      throw ClientError(
+        message:
+            'Returned video URI is a GCS path ($videoUri) which cannot be downloaded directly. '
+            'Please configure a GCS bucket with public access or use a signed URL.',
+        code: 'GCS_URI_NOT_SUPPORTED',
+        provider: id,
+      );
+    }
+
+    // Download video using GET request with authentication headers
+    // The video URI from Google's API requires the x-goog-api-key header
+    // Use _http.get() which includes the default headers (including x-goog-api-key)
+    final response = await _http.get(videoUri);
+
+    if (response.statusCode != 200) {
+      throw ClientError(
+        message:
+            'Failed to download video from URI: HTTP ${response.statusCode}. '
+            'Make sure the API key is valid and has access to download files.',
+        code: 'VIDEO_DOWNLOAD_FAILED',
+        provider: id,
+      );
+    }
+
+    return response.bodyBytes;
   }
 
   // ============================================================================

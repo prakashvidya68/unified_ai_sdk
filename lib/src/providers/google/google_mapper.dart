@@ -35,6 +35,7 @@
 /// ```
 library;
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -725,8 +726,8 @@ class GoogleMapper implements ProviderMapper {
   @override
   GoogleVideoRequest mapVideoRequest(VideoRequest request,
       {String? defaultModel}) {
-    // Determine model - default to veo-3.1 if not specified
-    final model = request.model ?? defaultModel ?? 'veo-3.1';
+    // Determine model - default to veo-3.1-generate-preview if not specified
+    final model = request.model ?? defaultModel ?? 'veo-3.1-generate-preview';
     if (model.isEmpty) {
       throw ClientError(
         message:
@@ -735,14 +736,83 @@ class GoogleMapper implements ProviderMapper {
       );
     }
 
+    // Extract Google-specific options from providerOptions
+    final googleOptions =
+        request.providerOptions?['google'] ?? <String, dynamic>{};
+
+    // Only include parameters that are explicitly provided (not null, not empty)
+    // Priority: providerOptions > direct request fields
+    // This ensures only user-specified values are used, no defaults are applied
+
+    // Duration: use providerOptions first, then request field, only if not null
+    int? duration;
+    if (googleOptions['duration'] != null) {
+      final optDuration = googleOptions['duration'];
+      if (optDuration is int) {
+        duration = optDuration;
+      } else if (optDuration is num) {
+        duration = optDuration.toInt();
+      }
+    } else if (request.duration != null) {
+      duration = request.duration;
+    }
+
+    // AspectRatio: use providerOptions first, then request field, only if not null and not empty
+    String? aspectRatio;
+    if (googleOptions['aspectRatio'] != null) {
+      final optAspectRatio = googleOptions['aspectRatio'].toString();
+      if (optAspectRatio.isNotEmpty) {
+        aspectRatio = optAspectRatio;
+      }
+    } else if (request.aspectRatio != null && request.aspectRatio!.isNotEmpty) {
+      aspectRatio = request.aspectRatio;
+    }
+
+    // FrameRate: use providerOptions first, then request field, only if not null
+    int? frameRate;
+    if (googleOptions['frameRate'] != null) {
+      final optFrameRate = googleOptions['frameRate'];
+      if (optFrameRate is int) {
+        frameRate = optFrameRate;
+      } else if (optFrameRate is num) {
+        frameRate = optFrameRate.toInt();
+      }
+    } else if (request.frameRate != null) {
+      frameRate = request.frameRate;
+    }
+
+    // Quality: use providerOptions first, then request field, only if not null and not empty
+    String? quality;
+    if (googleOptions['quality'] != null) {
+      final optQuality = googleOptions['quality'].toString();
+      if (optQuality.isNotEmpty) {
+        quality = optQuality;
+      }
+    } else if (request.quality != null && request.quality!.isNotEmpty) {
+      quality = request.quality;
+    }
+
+    // Seed: use providerOptions first, then request field, only if not null
+    int? seed;
+    if (googleOptions['seed'] != null) {
+      final optSeed = googleOptions['seed'];
+      if (optSeed is int) {
+        seed = optSeed;
+      } else if (optSeed is num) {
+        seed = optSeed.toInt();
+      }
+    } else if (request.seed != null) {
+      seed = request.seed;
+    }
+
     return GoogleVideoRequest(
       model: model,
       prompt: request.prompt,
-      duration: request.duration,
-      aspectRatio: request.aspectRatio,
-      frameRate: request.frameRate,
-      quality: request.quality,
-      seed: request.seed,
+      duration: duration,
+      aspectRatio: aspectRatio,
+      frameRate: frameRate,
+      quality: quality,
+      seed: seed,
     );
   }
 
@@ -769,6 +839,34 @@ class GoogleMapper implements ProviderMapper {
     return VideoResponse(
       assets: assets,
       model: response.model,
+      provider: 'google',
+      timestamp: DateTime.now(),
+    );
+  }
+
+  /// Maps a completed video generation operation to SDK VideoResponse format.
+  ///
+  /// This method handles the new operation-based response structure from Google's Veo API.
+  /// It converts the operation response and downloaded video bytes into the SDK format.
+  VideoResponse mapVideoResponseFromOperation(
+    GoogleVideoOperation operation,
+    Uint8List videoBytes,
+    String model,
+  ) {
+    // Convert video bytes to base64
+    final videoBase64 = base64Encode(videoBytes);
+
+    // Create a single video asset from the downloaded video
+    final asset = VideoAsset(
+      base64: videoBase64,
+      url: null, // Video is provided as base64, not URL
+      // Note: Video metadata (width, height, duration, frameRate) is not
+      // provided in the operation response, so we leave them null
+    );
+
+    return VideoResponse(
+      assets: [asset],
+      model: model,
       provider: 'google',
       timestamp: DateTime.now(),
     );

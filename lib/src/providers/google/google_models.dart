@@ -1001,15 +1001,43 @@ class GoogleVideoRequest {
   });
 
   /// Converts this request to a JSON map.
+  ///
+  /// Returns the format required by Google's Veo API:
+  /// {"instances": [{"prompt": "..."}]}
+  ///
+  /// Only includes parameters that are explicitly provided (not null, not empty strings).
+  /// This ensures the request contains only what the user specified.
   Map<String, dynamic> toJson() {
-    return {
-      if (model != null) 'model': model,
+    // Build the instance object with prompt (required)
+    final instance = <String, dynamic>{
       'prompt': prompt,
-      if (duration != null) 'duration': duration,
-      if (aspectRatio != null) 'aspectRatio': aspectRatio,
-      if (frameRate != null) 'frameRate': frameRate,
-      if (quality != null) 'quality': quality,
-      if (seed != null) 'seed': seed,
+    };
+
+    // Add optional parameters to the instance only if they are explicitly provided
+    // Skip null values and empty strings to ensure only user-specified parameters are sent
+
+    if (duration != null) {
+      instance['duration'] = duration;
+    }
+
+    if (aspectRatio != null && aspectRatio!.isNotEmpty) {
+      instance['aspectRatio'] = aspectRatio;
+    }
+
+    if (frameRate != null) {
+      instance['frameRate'] = frameRate;
+    }
+
+    if (quality != null && quality!.isNotEmpty) {
+      instance['quality'] = quality;
+    }
+
+    if (seed != null) {
+      instance['seed'] = seed;
+    }
+
+    return {
+      'instances': [instance],
     };
   }
 
@@ -1050,7 +1078,7 @@ class GoogleVideoResponse {
               .map((v) => GoogleVideoData.fromJson(v as Map<String, dynamic>))
               .toList()
           : [],
-      model: json['model'] as String? ?? 'veo-3.1',
+      model: json['model'] as String? ?? 'veo-3.1-generate-preview',
     );
   }
 }
@@ -1095,6 +1123,170 @@ class GoogleVideoData {
       duration: json['duration'] as int?,
       frameRate: json['frameRate'] as int?,
     );
+  }
+}
+
+/// Represents a long-running operation response from Google's Veo API.
+///
+/// When a video generation request is submitted, Google returns an operation
+/// object that must be polled until completion. This class represents that
+/// operation state.
+class GoogleVideoOperation {
+  /// The operation name/identifier used for polling.
+  final String name;
+
+  /// Whether the operation has completed.
+  final bool done;
+
+  /// The operation response (only present when done is true).
+  final GoogleVideoOperationResponse? response;
+
+  /// Error information (only present if operation failed).
+  final Map<String, dynamic>? error;
+
+  /// Creates a new [GoogleVideoOperation] instance.
+  GoogleVideoOperation({
+    required this.name,
+    required this.done,
+    this.response,
+    this.error,
+  });
+
+  /// Creates a [GoogleVideoOperation] from a JSON map.
+  factory GoogleVideoOperation.fromJson(Map<String, dynamic> json) {
+    return GoogleVideoOperation(
+      name: json['name'] as String,
+      done: json['done'] as bool? ?? false,
+      response: json['response'] != null
+          ? GoogleVideoOperationResponse.fromJson(
+              json['response'] as Map<String, dynamic>)
+          : null,
+      error: json['error'] as Map<String, dynamic>?,
+    );
+  }
+
+  /// Converts this operation to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'done': done,
+      if (response != null) 'response': response!.toJson(),
+      if (error != null) 'error': error,
+    };
+  }
+}
+
+/// Represents the response payload of a completed video generation operation.
+///
+/// This contains the actual video generation results after the operation
+/// completes successfully.
+class GoogleVideoOperationResponse {
+  /// The generate video response containing the generated samples.
+  final GoogleGenerateVideoResponse? generateVideoResponse;
+
+  /// Creates a new [GoogleVideoOperationResponse] instance.
+  GoogleVideoOperationResponse({
+    this.generateVideoResponse,
+  });
+
+  /// Creates a [GoogleVideoOperationResponse] from a JSON map.
+  factory GoogleVideoOperationResponse.fromJson(Map<String, dynamic> json) {
+    return GoogleVideoOperationResponse(
+      generateVideoResponse: json['generateVideoResponse'] != null
+          ? GoogleGenerateVideoResponse.fromJson(
+              json['generateVideoResponse'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (generateVideoResponse != null)
+        'generateVideoResponse': generateVideoResponse!.toJson(),
+    };
+  }
+}
+
+/// Represents the generate video response containing generated samples.
+class GoogleGenerateVideoResponse {
+  /// List of generated video samples.
+  final List<GoogleVideoSample> generatedSamples;
+
+  /// Creates a new [GoogleGenerateVideoResponse] instance.
+  GoogleGenerateVideoResponse({
+    required this.generatedSamples,
+  });
+
+  /// Creates a [GoogleGenerateVideoResponse] from a JSON map.
+  factory GoogleGenerateVideoResponse.fromJson(Map<String, dynamic> json) {
+    final samples = json['generatedSamples'] as List<dynamic>?;
+    return GoogleGenerateVideoResponse(
+      generatedSamples: samples != null
+          ? samples
+              .map((s) => GoogleVideoSample.fromJson(s as Map<String, dynamic>))
+              .toList()
+          : [],
+    );
+  }
+
+  /// Converts this response to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      'generatedSamples': generatedSamples.map((s) => s.toJson()).toList(),
+    };
+  }
+}
+
+/// Represents a single generated video sample.
+class GoogleVideoSample {
+  /// The video data containing the URI.
+  final GoogleVideoFile? video;
+
+  /// Creates a new [GoogleVideoSample] instance.
+  GoogleVideoSample({
+    this.video,
+  });
+
+  /// Creates a [GoogleVideoSample] from a JSON map.
+  factory GoogleVideoSample.fromJson(Map<String, dynamic> json) {
+    return GoogleVideoSample(
+      video: json['video'] != null
+          ? GoogleVideoFile.fromJson(json['video'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  /// Converts this sample to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (video != null) 'video': video!.toJson(),
+    };
+  }
+}
+
+/// Represents a video file with URI for download.
+class GoogleVideoFile {
+  /// The URI where the video can be downloaded.
+  final String? uri;
+
+  /// Creates a new [GoogleVideoFile] instance.
+  GoogleVideoFile({
+    this.uri,
+  });
+
+  /// Creates a [GoogleVideoFile] from a JSON map.
+  factory GoogleVideoFile.fromJson(Map<String, dynamic> json) {
+    return GoogleVideoFile(
+      uri: json['uri'] as String?,
+    );
+  }
+
+  /// Converts this file to a JSON map.
+  Map<String, dynamic> toJson() {
+    return {
+      if (uri != null) 'uri': uri,
+    };
   }
 }
 
